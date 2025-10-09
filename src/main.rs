@@ -9,6 +9,7 @@ mod render;
 mod states;
 mod ui;
 mod util;
+mod updater;
 
 #[macroquad::main("Bas Veeg Arc")]
 async fn main() {

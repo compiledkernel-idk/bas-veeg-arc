@@ -1,6 +1,6 @@
 [package]
 name = "bas-veeg-arc"
-version = "1.0.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -12,6 +12,7 @@ ron = "0.8"
 ahash = "0.8"
 arrayvec = "0.7"
 bitflags = "2.4"
+minreq = { version = "2.11", features = ["https"] }
 
 [profile.release]
 opt-level = 3
