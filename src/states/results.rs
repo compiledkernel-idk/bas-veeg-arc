@@ -38,7 +38,7 @@ impl State for ResultsState {
     fn fixed_update(&mut self, _dt: f64) {}
 
     fn render(&mut self, _interpolation: f32) {
-        clear_background(Color::new(0.05, 0.05, 0.1, 1.0));
+        clear_background(BLACK);
 
         let victory_text = format!("{} WINS!", self.winner);
         let victory_size = 80.0;

@@ -1,4 +1,6 @@
 pub mod boot;
+pub mod character_select;
+pub mod controls;
 pub mod cutscene;
 pub mod gameplay;
 pub mod menu;
@@ -13,6 +15,8 @@ use std::collections::VecDeque;
 pub enum StateType {
     Boot,
     Menu,
+    CharacterSelect,
+    Controls,
     Gameplay,
     Cutscene,
     Training,
@@ -110,7 +114,8 @@ impl StateManager {
         if self.states.len() > 1 {
             self.pending_transitions.push(StateTransition::Pop);
         } else {
-            self.should_quit = true;
+            // If we're at the base state (menu), replace with menu to ensure we're at menu
+            self.pending_transitions.push(StateTransition::Replace(StateType::Menu));
         }
     }
 
@@ -134,6 +139,8 @@ impl StateManager {
         match state_type {
             StateType::Boot => Box::new(boot::BootState::new()),
             StateType::Menu => Box::new(menu::MenuState::new()),
+            StateType::CharacterSelect => Box::new(character_select::CharacterSelectState::new()),
+            StateType::Controls => Box::new(controls::ControlsState::new()),
             StateType::Gameplay => Box::new(gameplay::GameplayState::new()),
             StateType::Cutscene => Box::new(cutscene::CutsceneState::new()),
             StateType::Training => Box::new(training::TrainingState::new()),

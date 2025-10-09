@@ -12,7 +12,11 @@ impl MenuState {
     pub fn new() -> Self {
         Self {
             selected_option: 0,
-            options: vec!["START STORY".to_string(), "EXIT".to_string()],
+            options: vec![
+                "START STORY".to_string(),
+                "CONTROLS".to_string(),
+                "EXIT".to_string(),
+            ],
             background_offset: 0.0,
             transition_to: None,
         }
@@ -37,7 +41,7 @@ impl State for MenuState {
     fn fixed_update(&mut self, _dt: f64) {}
 
     fn render(&mut self, _interpolation: f32) {
-        clear_background(Color::new(0.1, 0.05, 0.15, 1.0));
+        clear_background(BLACK);
 
         for i in 0..20 {
             for j in 0..12 {
@@ -111,8 +115,9 @@ impl State for MenuState {
 
         if is_key_pressed(KeyCode::J) || is_key_pressed(KeyCode::Enter) {
             match self.selected_option {
-                0 => self.transition_to = Some(StateType::Gameplay),
-                1 => std::process::exit(0),
+                0 => self.transition_to = Some(StateType::CharacterSelect),
+                1 => self.transition_to = Some(StateType::Controls),
+                2 => std::process::exit(0),
                 _ => {}
             }
         }

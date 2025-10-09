@@ -40,7 +40,7 @@ impl State for VersusState {
     fn fixed_update(&mut self, _dt: f64) {}
 
     fn render(&mut self, _interpolation: f32) {
-        clear_background(Color::new(0.15, 0.1, 0.2, 1.0));
+        clear_background(BLACK);
 
         draw_rectangle(
             self.player1_pos.x - 30.0,

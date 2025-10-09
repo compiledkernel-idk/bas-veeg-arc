@@ -3,17 +3,17 @@ use std::collections::HashMap;
 use crate::combat::hitbox::{Hitbox, SpecialType};
 use crate::combat::hurtbox::Hurtbox;
 use crate::combat::inputs::InputManager;
-use crate::data::{ShopManager, UpgradeId};
+use crate::data::{AbilityState, CharacterId, ShopManager, UpgradeId};
 use crate::ecs::System as EcsSystem;
+use crate::states::StateType;
 use crate::ecs::{
-    AIBehavior, AIController, BossPhase, CharacterType, EntityId, Fighter, FighterState, Health,
+    AIBehavior, AIController, Bomb, BossPhase, CharacterType, EntityId, Fighter, FighterState, Health,
     HitboxComponent, HurtboxComponent, Particle, ParticleType, Team, Transform, Velocity, World,
 };
 use crate::ecs::{
     AISystem, AnimationSystem, CombatSystem, MovementSystem, ParticleSystem, PhysicsSystem,
 };
 use crate::states::State;
-use macroquad::miniquad::window::request_quit;
 use macroquad::prelude::*;
 
 pub struct GameplayState {
@@ -50,6 +50,17 @@ pub struct GameplayState {
     player_max_health: f32,
     player_attack_multiplier: f32,
     game_over: bool,
+    selected_character: CharacterId,
+    ability_state: AbilityState,
+    ability_voice_line: Option<String>,
+    ability_voice_timer: f32,
+    burning_enemies: HashMap<EntityId, (f32, f32)>, // entity -> (remaining_time, dps)
+    transition_to: Option<StateType>,
+    bomb_entities: Vec<EntityId>,
+    bomb_spawn_timer: f32,
+    boss_battle_won: bool,
+    dialogue_choice_active: bool,
+    dialogue_choice_selected: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -139,6 +150,17 @@ impl GameplayState {
             player_max_health: 100.0,
             player_attack_multiplier: 1.0,
             game_over: false,
+            selected_character: crate::data::get_selected_character(),
+            ability_state: AbilityState::new(crate::data::get_selected_character()),
+            ability_voice_line: None,
+            ability_voice_timer: 0.0,
+            burning_enemies: HashMap::new(),
+            transition_to: None,
+            bomb_entities: Vec::new(),
+            bomb_spawn_timer: 0.0,
+            boss_battle_won: false,
+            dialogue_choice_active: false,
+            dialogue_choice_selected: 0,
         }
     }
 
@@ -202,10 +224,165 @@ impl GameplayState {
                 facing: 1.0,
                 attack_timer: 0.0,
                 team: Team::Player,
+                consecutive_hits_taken: 0,
+                hit_decay_timer: 0.0,
             },
         );
 
         self.player_entity = Some(entity);
+    }
+
+    fn spawn_big_boss(&mut self) {
+        // Spawn GIANT Bastiaan boss - 2x size, 500 HP, 30 damage
+        let boss_entity = self.world.create_entity();
+
+        self.world.add_component(
+            boss_entity,
+            Transform {
+                position: Vec2::new(900.0, 500.0),
+                rotation: 0.0,
+                scale: Vec2::new(2.0, 2.0), // GIANT size!
+            },
+        );
+
+        self.world.add_component(boss_entity, Velocity { linear: Vec2::ZERO, angular: 0.0 });
+
+        self.world.add_component(
+            boss_entity,
+            Health {
+                current: 500.0,
+                maximum: 500.0,
+                armor: 0.0,
+            },
+        );
+
+        self.world.add_component(boss_entity, HurtboxComponent { hurtbox: Hurtbox::new_standing(), active: true });
+        self.world.add_component(boss_entity, HitboxComponent { hitbox: Hitbox::new_light(), active: false, hits_registered: Vec::new() });
+
+        self.world.add_component(
+            boss_entity,
+            Fighter {
+                character_type: CharacterType::Bastiaan,
+                state: FighterState::Idle,
+                combo_counter: 0,
+                meter: 0.0,
+                max_meter: 100.0,
+                hitstun: 0.0,
+                blockstun: 0.0,
+                invulnerable: false,
+                facing: -1.0,
+                attack_timer: 0.0,
+                team: Team::Enemy,
+                consecutive_hits_taken: 0,
+                hit_decay_timer: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            AIController {
+                behavior: AIBehavior::Boss(BossPhase::Phase1),
+                target_entity: None,
+                state_timer: 0.0,
+                reaction_delay: 0.15, // Very fast attacks
+                difficulty: 1.0, // Maximum difficulty
+            },
+        );
+
+        self.enemy_entities.push(boss_entity);
+
+        // Spawn Keizer Bom Taha - bomb thrower in the sky
+        let keizer_entity = self.world.create_entity();
+
+        self.world.add_component(
+            keizer_entity,
+            Transform {
+                position: Vec2::new(screen_width() * 0.7, 200.0), // High in the sky
+                rotation: 0.0,
+                scale: Vec2::new(1.5, 1.5), // Bigger than normal
+            },
+        );
+
+        self.world.add_component(keizer_entity, Velocity { linear: Vec2::ZERO, angular: 0.0 });
+
+        self.world.add_component(
+            keizer_entity,
+            Health {
+                current: 250.0,
+                maximum: 250.0,
+                armor: 0.0,
+            },
+        );
+
+        self.world.add_component(keizer_entity, HurtboxComponent { hurtbox: Hurtbox::new_standing(), active: true });
+        self.world.add_component(keizer_entity, HitboxComponent { hitbox: Hitbox::new_light(), active: false, hits_registered: Vec::new() });
+
+        self.world.add_component(
+            keizer_entity,
+            Fighter {
+                character_type: CharacterType::KeizerBomTaha,
+                state: FighterState::Idle,
+                combo_counter: 0,
+                meter: 0.0,
+                max_meter: 100.0,
+                hitstun: 0.0,
+                blockstun: 0.0,
+                invulnerable: false,
+                facing: -1.0,
+                attack_timer: 0.0,
+                team: Team::Enemy,
+                consecutive_hits_taken: 0,
+                hit_decay_timer: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            keizer_entity,
+            AIController {
+                behavior: AIBehavior::Support,
+                target_entity: None,
+                state_timer: 0.0,
+                reaction_delay: 1.5, // Slow bomb attacks
+                difficulty: 0.8,
+            },
+        );
+
+        self.enemy_entities.push(keizer_entity);
+
+        // Show boss intro dialogue
+        self.show_dialogue("Bastiaan", "IK BEN DE EINDBAAS!", "I AM THE FINAL BOSS!");
+        self.show_dialogue("Keizer Bom Taha", "Ik gooi bommen!", "I throw bombs!");
+    }
+
+    fn spawn_bomb(&mut self, pos: Vec2) {
+        let bomb_entity = self.world.create_entity();
+
+        self.world.add_component(
+            bomb_entity,
+            Transform {
+                position: pos,
+                rotation: 0.0,
+                scale: Vec2::new(1.0, 1.0),
+            },
+        );
+
+        self.world.add_component(
+            bomb_entity,
+            Velocity {
+                linear: Vec2::new(0.0, 0.0), // Will fall due to gravity
+                angular: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            bomb_entity,
+            Bomb {
+                damage: 15.0,
+                owner_id: 0, // Keizer's bomb
+            },
+        );
+
+        self.bomb_entities.push(bomb_entity);
     }
 
     fn spawn_enemy(&mut self, pos: Vec2, character: CharacterType) {
@@ -268,6 +445,8 @@ impl GameplayState {
                 facing: -1.0,
                 attack_timer: 0.0,
                 team: Team::Enemy,
+                consecutive_hits_taken: 0,
+                hit_decay_timer: 0.0,
             },
         );
 
@@ -278,6 +457,7 @@ impl GameplayState {
             CharacterType::Librarian => (AIBehavior::Balanced, 0.5),
             CharacterType::Coach => (AIBehavior::Aggressive, 0.65),
             CharacterType::Bastiaan => (AIBehavior::Boss(BossPhase::Phase1), 0.7),
+            CharacterType::KeizerBomTaha => (AIBehavior::Support, 0.8),
             _ => (AIBehavior::Balanced, 0.4),
         };
 
@@ -285,7 +465,7 @@ impl GameplayState {
             entity,
             AIController {
                 behavior,
-                target_entity: self.player_entity,
+                target_entity: None, // Let AI system find nearest target (player or ally)
                 state_timer: rand::gen_range(0.0, 0.2),
                 reaction_delay: (0.35_f32 - difficulty * 0.15_f32).max(0.18_f32),
                 difficulty,
@@ -355,6 +535,8 @@ impl GameplayState {
                 facing: 1.0,
                 attack_timer: 0.0,
                 team: Team::Ally,
+                consecutive_hits_taken: 0,
+                hit_decay_timer: 0.0,
             },
         );
 
@@ -481,6 +663,43 @@ impl State for GameplayState {
             return;
         }
 
+        // Update ability state
+        self.ability_state.update(dt);
+
+        // Update ability voice line timer
+        if self.ability_voice_timer > 0.0 {
+            self.ability_voice_timer -= dt;
+            if self.ability_voice_timer <= 0.0 {
+                self.ability_voice_line = None;
+            }
+        }
+
+        // Update combat system with ability damage multiplier
+        let ability_damage_mult = self.ability_state.get_damage_multiplier();
+        let total_damage_mult = self.player_attack_multiplier * ability_damage_mult;
+        self.combat_system.set_player_attack_multiplier(total_damage_mult);
+
+        // Update burning enemies
+        let mut enemies_to_remove = Vec::new();
+        for (entity, (remaining_time, dps)) in self.burning_enemies.iter_mut() {
+            *remaining_time -= dt;
+
+            // Apply fire damage
+            if let Some(enemy_health) = self.world.get_component_mut::<Health>(*entity) {
+                enemy_health.current = (enemy_health.current - *dps * dt).max(0.0);
+            }
+
+            // Mark for removal if time expired
+            if *remaining_time <= 0.0 {
+                enemies_to_remove.push(*entity);
+            }
+        }
+
+        // Remove expired burning effects
+        for entity in enemies_to_remove {
+            self.burning_enemies.remove(&entity);
+        }
+
         if self.current_dialogue.is_none() && !self.dialogue_queue.is_empty() {
             self.current_dialogue = self.dialogue_queue.pop();
             self.dialogue_timer = 0.0;
@@ -507,6 +726,160 @@ impl State for GameplayState {
             return;
         }
 
+        // Handle dialogue choice after boss battle
+        if self.dialogue_choice_active {
+            if is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::W) {
+                if self.dialogue_choice_selected > 0 {
+                    self.dialogue_choice_selected -= 1;
+                }
+            }
+            if is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::S) {
+                if self.dialogue_choice_selected < 2 {
+                    self.dialogue_choice_selected += 1;
+                }
+            }
+            if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::J) {
+                // Player made a choice, continue with game
+                self.dialogue_choice_active = false;
+                self.boss_battle_won = true;
+                // Show response based on choice
+                match self.dialogue_choice_selected {
+                    0 => self.show_dialogue("Bas", "Laten we een feestje bouwen!", "Let's build a party!"),
+                    1 => self.show_dialogue("Bas", "We moeten de school repareren.", "We must repair the school."),
+                    2 => self.show_dialogue("Bas", "Tijd om naar huis te gaan.", "Time to go home."),
+                    _ => {}
+                }
+            }
+            return;
+        }
+
+        // Bomb spawning logic - check if Keizer is alive
+        let keizer_alive = self.enemy_entities.iter().any(|&entity| {
+            if let Some(fighter) = self.world.get_component::<Fighter>(entity) {
+                fighter.character_type == CharacterType::KeizerBomTaha
+            } else {
+                false
+            }
+        });
+
+        if keizer_alive && !self.boss_battle_won {
+            self.bomb_spawn_timer -= dt;
+            if self.bomb_spawn_timer <= 0.0 {
+                // Find Keizer's position
+                if let Some(&keizer_entity) = self.enemy_entities.iter().find(|&&entity| {
+                    if let Some(fighter) = self.world.get_component::<Fighter>(entity) {
+                        fighter.character_type == CharacterType::KeizerBomTaha
+                    } else {
+                        false
+                    }
+                }) {
+                    if let Some(keizer_transform) = self.world.get_component::<Transform>(keizer_entity) {
+                        self.spawn_bomb(keizer_transform.position);
+                    }
+                }
+                self.bomb_spawn_timer = 2.5; // Spawn bomb every 2.5 seconds
+            }
+        }
+
+        // Update bombs - make them fall and check collisions
+        let mut bombs_to_remove = Vec::new();
+        let mut explosion_positions = Vec::new();
+        let mut entities_to_damage = Vec::new();
+
+        for &bomb_entity in &self.bomb_entities {
+            if let Some(velocity) = self.world.get_component_mut::<Velocity>(bomb_entity) {
+                velocity.linear.y += 400.0 * dt; // Gravity
+            }
+        }
+
+        for &bomb_entity in &self.bomb_entities {
+            if let Some(transform) = self.world.get_component::<Transform>(bomb_entity) {
+                let bomb_pos = transform.position;
+
+                // Check if bomb hit the ground
+                if bomb_pos.y > 600.0 {
+                    bombs_to_remove.push(bomb_entity);
+                    explosion_positions.push(bomb_pos);
+                } else {
+                    // Check collision with player
+                    if let Some(player_entity) = self.player_entity {
+                        if let Some(player_transform) = self.world.get_component::<Transform>(player_entity) {
+                            let dist = (bomb_pos - player_transform.position).length();
+                            if dist < 40.0 {
+                                bombs_to_remove.push(bomb_entity);
+                                explosion_positions.push(bomb_pos);
+                                entities_to_damage.push(player_entity);
+                            }
+                        }
+                    }
+
+                    // Check collision with allies
+                    for &ally_entity in &self.ally_entities {
+                        if let Some(ally_transform) = self.world.get_component::<Transform>(ally_entity) {
+                            let dist = (bomb_pos - ally_transform.position).length();
+                            if dist < 40.0 && !bombs_to_remove.contains(&bomb_entity) {
+                                bombs_to_remove.push(bomb_entity);
+                                explosion_positions.push(bomb_pos);
+                                entities_to_damage.push(ally_entity);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Apply damage to hit entities
+        for entity in entities_to_damage {
+            if let Some(health) = self.world.get_component_mut::<Health>(entity) {
+                health.current = (health.current - 15.0).max(0.0);
+            }
+        }
+
+        // Create explosion particles
+        for explosion_pos in explosion_positions {
+            let particle_count = 20;
+            for _ in 0..particle_count {
+                let angle = rand::gen_range(0.0, std::f32::consts::PI * 2.0);
+                let speed = rand::gen_range(50.0, 200.0);
+                let particle_entity = self.world.create_entity();
+                self.world.add_component(
+                    particle_entity,
+                    Transform {
+                        position: explosion_pos,
+                        rotation: 0.0,
+                        scale: Vec2::ONE,
+                    },
+                );
+                self.world.add_component(
+                    particle_entity,
+                    Velocity {
+                        linear: Vec2::new(angle.cos() * speed, angle.sin() * speed),
+                        angular: 0.0,
+                    },
+                );
+                self.world.add_component(
+                    particle_entity,
+                    Particle {
+                        particle_type: ParticleType::Smoke,
+                        lifetime: 0.0,
+                        max_lifetime: 1.0,
+                        velocity: Vec2::new(angle.cos() * speed, angle.sin() * speed),
+                        acceleration: Vec2::new(0.0, 50.0),
+                        color_start: Color::new(1.0, 0.5, 0.0, 1.0),
+                        color_end: Color::new(0.3, 0.3, 0.3, 0.0),
+                        size_start: 15.0,
+                        size_end: 3.0,
+                    },
+                );
+            }
+        }
+
+        // Remove exploded bombs
+        for bomb_entity in bombs_to_remove {
+            self.world.destroy_entity(bomb_entity);
+            self.bomb_entities.retain(|&e| e != bomb_entity);
+        }
+
         if self.enemies_to_spawn > 0 {
             self.spawn_timer -= dt;
             if self.spawn_timer <= 0.0 {
@@ -529,7 +902,31 @@ impl State for GameplayState {
             }
         });
 
-        if self.enemy_entities.is_empty() && self.enemies_to_spawn == 0 {
+        // Remove dead allies
+        self.ally_entities.retain(|&entity| {
+            if let Some(health) = self.world.get_component::<Health>(entity) {
+                if health.current > 0.0 {
+                    true
+                } else {
+                    self.world.destroy_entity(entity);
+                    false
+                }
+            } else {
+                false
+            }
+        });
+
+        // Check if both bosses are defeated on Rooftop
+        if self.current_map == MapType::Rooftop
+            && self.enemy_entities.is_empty()
+            && !self.boss_battle_won
+            && !self.dialogue_choice_active {
+            // Both bosses are dead! Show dialogue choice
+            self.dialogue_choice_active = true;
+            self.dialogue_choice_selected = 0;
+        }
+
+        if self.enemy_entities.is_empty() && self.enemies_to_spawn == 0 && !self.dialogue_choice_active {
             self.complete_wave();
         }
 
@@ -551,31 +948,84 @@ impl State for GameplayState {
     fn fixed_update(&mut self, _dt: f64) {}
 
     fn render(&mut self, _interpolation: f32) {
+        // Gradient backgrounds for each map
         match self.current_map {
             MapType::Classroom => {
-                clear_background(Color::new(0.8, 0.75, 0.65, 1.0));
+                // Warm classroom gradient
+                for i in 0..40 {
+                    let y = i as f32 * screen_height() / 40.0;
+                    let height = screen_height() / 40.0;
+                    let t = i as f32 / 40.0;
+                    let color = Color::new(0.9 - t * 0.15, 0.8 - t * 0.1, 0.6 - t * 0.05, 1.0);
+                    draw_rectangle(0.0, y, screen_width(), height, color);
+                }
                 self.render_classroom();
             }
             MapType::Hallway => {
-                clear_background(Color::new(0.85, 0.85, 0.8, 1.0));
+                // Cool hallway gradient
+                for i in 0..40 {
+                    let y = i as f32 * screen_height() / 40.0;
+                    let height = screen_height() / 40.0;
+                    let t = i as f32 / 40.0;
+                    let color = Color::new(0.85 - t * 0.2, 0.85 - t * 0.15, 0.9 - t * 0.1, 1.0);
+                    draw_rectangle(0.0, y, screen_width(), height, color);
+                }
                 self.render_hallway();
             }
             MapType::Cafeteria => {
-                clear_background(Color::new(0.9, 0.85, 0.75, 1.0));
+                // Bright cafeteria gradient
+                for i in 0..40 {
+                    let y = i as f32 * screen_height() / 40.0;
+                    let height = screen_height() / 40.0;
+                    let t = i as f32 / 40.0;
+                    let color = Color::new(0.95 - t * 0.1, 0.9 - t * 0.15, 0.75 - t * 0.1, 1.0);
+                    draw_rectangle(0.0, y, screen_width(), height, color);
+                }
                 self.render_cafeteria();
             }
             MapType::Gym => {
-                clear_background(Color::new(0.7, 0.75, 0.8, 1.0));
+                // Athletic gym gradient
+                for i in 0..40 {
+                    let y = i as f32 * screen_height() / 40.0;
+                    let height = screen_height() / 40.0;
+                    let t = i as f32 / 40.0;
+                    let color = Color::new(0.65 - t * 0.15, 0.75 - t * 0.2, 0.85 - t * 0.15, 1.0);
+                    draw_rectangle(0.0, y, screen_width(), height, color);
+                }
                 self.render_gym();
             }
             MapType::Library => {
-                clear_background(Color::new(0.6, 0.55, 0.5, 1.0));
+                // Scholarly library gradient
+                for i in 0..40 {
+                    let y = i as f32 * screen_height() / 40.0;
+                    let height = screen_height() / 40.0;
+                    let t = i as f32 / 40.0;
+                    let color = Color::new(0.65 - t * 0.2, 0.55 - t * 0.15, 0.5 - t * 0.15, 1.0);
+                    draw_rectangle(0.0, y, screen_width(), height, color);
+                }
                 self.render_library();
             }
             MapType::Rooftop => {
-                clear_background(Color::new(0.5, 0.7, 0.9, 1.0));
+                // Dramatic rooftop gradient
+                for i in 0..40 {
+                    let y = i as f32 * screen_height() / 40.0;
+                    let height = screen_height() / 40.0;
+                    let t = i as f32 / 40.0;
+                    let color = Color::new(0.5 - t * 0.2, 0.7 - t * 0.3, 0.95 - t * 0.2, 1.0);
+                    draw_rectangle(0.0, y, screen_width(), height, color);
+                }
                 self.render_rooftop();
             }
+        }
+
+        // Add atmospheric particles
+        let time = get_time();
+        for i in 0..15 {
+            let x = ((time * 15.0 + i as f64 * 50.0).sin() * screen_width() as f64 * 0.5 + screen_width() as f64 * 0.5) as f32;
+            let y = ((time * 20.0 + i as f64 * 30.0) % screen_height() as f64) as f32;
+            let size = 2.0 + ((time * 2.0 + i as f64).sin() * 1.5) as f32;
+            let alpha = 0.15 + ((time * 3.0 + i as f64).sin() * 0.1) as f32;
+            draw_circle(x, y, size, Color::new(1.0, 1.0, 1.0, alpha));
         }
 
         let mut draw_order: Vec<_> = self
@@ -595,12 +1045,80 @@ impl State for GameplayState {
                 let pos = transform.position - self.camera_pos;
 
                 if let Some(fighter) = self.world.get_component::<Fighter>(entity) {
-                    let shadow_color = Color::new(0.0, 0.0, 0.0, 0.25);
-                    draw_ellipse(pos.x, pos.y + 70.0, 42.0, 14.0, 0.0, shadow_color);
+                    // Enhanced shadow with gradient effect
+                    let shadow_color = Color::new(0.0, 0.0, 0.0, 0.4);
+                    draw_ellipse(pos.x, pos.y + 70.0, 48.0, 16.0, 0.0, shadow_color);
+                    draw_ellipse(pos.x, pos.y + 70.0, 36.0, 12.0, 0.0, Color::new(0.0, 0.0, 0.0, 0.2));
+
+                    let is_player = self.player_entity.map(|id| id == entity).unwrap_or(false);
+                    let is_ally = self.ally_entities.contains(&entity);
+
+                    // Character outline glow
+                    let glow_color = if is_player {
+                        Color::new(1.0, 0.9, 0.0, 0.5)
+                    } else if is_ally {
+                        Color::new(0.3, 1.0, 0.5, 0.4)
+                    } else {
+                        Color::new(1.0, 0.3, 0.3, 0.4)
+                    };
+
+                    for offset in [3.0, 2.0, 1.0] {
+                        draw_circle(pos.x, pos.y, 32.0 + offset, Color::new(glow_color.r, glow_color.g, glow_color.b, glow_color.a * 0.3));
+                    }
+
+                    // Draw ability aura for player
+                    if is_player && self.ability_state.active {
+                        let time = get_time();
+                        let pulse = (time * 3.0).sin() * 0.3 + 0.7;
+                        let aura_color = match self.selected_character {
+                            CharacterId::Berkay => Color::new(1.0, 0.5, 0.0, 0.4 * pulse as f32),
+                            CharacterId::Luca => Color::new(0.3, 0.6, 1.0, 0.4 * pulse as f32),
+                            CharacterId::Gefferinho => Color::new(1.0, 0.2, 0.2, 0.4 * pulse as f32),
+                            CharacterId::Bas => Color::new(0.0, 1.0, 0.5, 0.4 * pulse as f32),
+                            CharacterId::Hadi => Color::new(1.0, 0.8, 0.0, 0.4 * pulse as f32),
+                            CharacterId::Nitin => Color::new(1.0, 0.3, 0.0, 0.4 * pulse as f32),
+                        };
+                        // Draw multiple pulsing rings for aura effect
+                        for i in 0..4 {
+                            let radius = 55.0 + i as f32 * 18.0 + (time * 2.0 + i as f64).sin() as f32 * 5.0;
+                            draw_circle_lines(pos.x, pos.y, radius, 4.0, aura_color);
+                        }
+
+                        // Add particle sparkles around player
+                        for i in 0..8 {
+                            let angle = time * 2.0 + i as f64 * std::f64::consts::PI * 0.25;
+                            let sparkle_x = pos.x + (angle.cos() as f32) * 65.0;
+                            let sparkle_y = pos.y + (angle.sin() as f32) * 65.0;
+                            let sparkle_pulse = ((time * 5.0 + i as f64 * 0.3).sin() * 0.5 + 0.5) as f32;
+                            draw_circle(sparkle_x, sparkle_y, 3.0 * sparkle_pulse, aura_color);
+                        }
+                    }
 
                     self.render_character(pos, fighter);
 
-                    let is_player = self.player_entity.map(|id| id == entity).unwrap_or(false);
+                    // Render fire effect for burning enemies
+                    if self.burning_enemies.contains_key(&entity) {
+                        let time = get_time();
+                        for i in 0..3 {
+                            let offset_y = -30.0 - i as f32 * 10.0 + (time * 5.0 + i as f64 * 0.5).sin() as f32 * 5.0;
+                            let offset_x = ((time * 3.0 + i as f64 * 0.7).sin() * 10.0) as f32;
+                            let size = 8.0 + i as f32 * 2.0;
+                            let alpha = 0.7 - i as f32 * 0.2;
+                            draw_circle(
+                                pos.x + offset_x,
+                                pos.y + offset_y,
+                                size,
+                                Color::new(1.0, 0.5, 0.0, alpha),
+                            );
+                            draw_circle(
+                                pos.x + offset_x,
+                                pos.y + offset_y,
+                                size * 0.6,
+                                Color::new(1.0, 0.8, 0.0, alpha),
+                            );
+                        }
+                    }
+
                     let is_ally = self.ally_entities.contains(&entity);
                     let name = self.character_display_name(&fighter.character_type, is_player);
 
@@ -617,15 +1135,70 @@ impl State for GameplayState {
 
                 if let Some(health) = self.world.get_component::<Health>(entity) {
                     let health_pct = health.current / health.maximum;
-                    draw_rectangle(pos.x - 30.0, pos.y - 80.0, 60.0 * health_pct, 5.0, GREEN);
-                    draw_rectangle_lines(
-                        pos.x - 30.0,
-                        pos.y - 80.0,
-                        60.0,
-                        5.0,
-                        2.0,
-                        Color::new(0.2, 0.2, 0.2, 1.0),
-                    );
+
+                    // Enhanced health bar with gradient and glow
+                    let bar_width = 70.0;
+                    let bar_height = 8.0;
+                    let bar_x = pos.x - bar_width * 0.5;
+                    let bar_y = pos.y - 85.0;
+
+                    // Background shadow
+                    draw_rectangle(bar_x + 2.0, bar_y + 2.0, bar_width, bar_height, Color::new(0.0, 0.0, 0.0, 0.5));
+
+                    // Dark background
+                    draw_rectangle(bar_x, bar_y, bar_width, bar_height, Color::new(0.15, 0.15, 0.15, 0.9));
+
+                    // Health bar with gradient (green to yellow to red based on health)
+                    let health_color = if health_pct > 0.6 {
+                        Color::new(0.2 + health_pct * 0.3, 1.0, 0.3, 1.0)
+                    } else if health_pct > 0.3 {
+                        Color::new(1.0, 0.8, 0.2, 1.0)
+                    } else {
+                        Color::new(1.0, 0.3, 0.2, 1.0)
+                    };
+
+                    draw_rectangle(bar_x, bar_y, bar_width * health_pct, bar_height, health_color);
+
+                    // Add glow effect on health bar
+                    if health_pct > 0.0 {
+                        draw_rectangle(bar_x, bar_y, bar_width * health_pct, bar_height * 0.4,
+                            Color::new(health_color.r + 0.2, health_color.g + 0.2, health_color.b + 0.2, 0.6));
+                    }
+
+                    // Border
+                    draw_rectangle_lines(bar_x, bar_y, bar_width, bar_height, 2.0, Color::new(0.8, 0.8, 0.8, 0.9));
+
+                    // Health text
+                    let health_text = format!("{:.0}/{:.0}", health.current, health.maximum);
+                    let text_size = 14.0;
+                    let text_dims = measure_text(&health_text, None, text_size as u16, 1.0);
+                    draw_text(&health_text, bar_x + bar_width * 0.5 - text_dims.width * 0.5, bar_y - 3.0, text_size, WHITE);
+                }
+
+                // Render bombs
+                if let Some(_bomb) = self.world.get_component::<Bomb>(entity) {
+                    let time = get_time() as f32;
+
+                    // Shadow
+                    draw_ellipse(pos.x, pos.y + 20.0, 18.0, 8.0, 0.0, Color::new(0.0, 0.0, 0.0, 0.4));
+
+                    // Main bomb body - black sphere
+                    draw_circle(pos.x, pos.y, 18.0, Color::new(0.1, 0.1, 0.1, 1.0));
+                    draw_circle(pos.x - 4.0, pos.y - 4.0, 15.0, Color::new(0.2, 0.2, 0.2, 1.0));
+
+                    // Highlight to make it look 3D
+                    draw_circle(pos.x - 6.0, pos.y - 6.0, 6.0, Color::new(0.4, 0.4, 0.4, 0.8));
+
+                    // Fuse on top
+                    draw_rectangle(pos.x - 2.0, pos.y - 18.0, 4.0, 10.0, Color::new(0.3, 0.2, 0.1, 1.0));
+
+                    // Animated sparking fuse tip
+                    let spark_size = ((time * 10.0).sin().abs() * 3.0 + 2.0) as f32;
+                    draw_circle(pos.x, pos.y - 18.0, spark_size, Color::new(1.0, 0.3, 0.0, 1.0));
+                    draw_circle(pos.x, pos.y - 18.0, spark_size * 0.6, Color::new(1.0, 0.8, 0.0, 1.0));
+
+                    // Danger symbol
+                    draw_text("!", pos.x - 3.0, pos.y + 5.0, 20.0, Color::new(1.0, 0.0, 0.0, 0.9));
                 }
             }
         }
@@ -639,6 +1212,11 @@ impl State for GameplayState {
         }
 
         self.render_shop_feedback();
+
+        // Render dialogue choice if active
+        if self.dialogue_choice_active {
+            self.render_dialogue_choice();
+        }
 
         if self.game_over {
             draw_rectangle(
@@ -659,7 +1237,7 @@ impl State for GameplayState {
                 Color::new(1.0, 0.2, 0.2, 1.0),
             );
 
-            let prompt = "Bas fainted! Press ESC to exit.";
+            let prompt = "Bas fainted! Press ESC or ENTER to return to menu.";
             let prompt_dims = measure_text(prompt, None, 28, 1.0);
             draw_text(
                 prompt,
@@ -691,8 +1269,8 @@ impl State for GameplayState {
 
     fn handle_input(&mut self) {
         if self.game_over {
-            if is_key_pressed(KeyCode::Escape) {
-                request_quit();
+            if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::Enter) {
+                self.transition_to = Some(StateType::Menu);
             }
             return;
         }
@@ -755,13 +1333,61 @@ impl State for GameplayState {
                     if is_key_pressed(KeyCode::L) {
                         new_state = Some(FighterState::Special);
                     }
+
+                    // Ability activation
+                    if is_key_pressed(KeyCode::E) {
+                        if self.ability_state.can_activate() {
+                            let voice_line = self.ability_state.activate();
+                            if !voice_line.is_empty() {
+                                self.ability_voice_line = Some(voice_line.to_string());
+                                self.ability_voice_timer = 2.0;
+
+                                // Apply health boost if applicable
+                                let health_boost = self.ability_state.get_health_boost();
+                                if health_boost > 0.0 {
+                                    if let Some(health) = self.world.get_component_mut::<Health>(player_entity) {
+                                        health.current = (health.current + health_boost).min(health.maximum);
+                                    }
+                                }
+
+                                // Trigger splash damage if applicable (Bas's ability)
+                                if let Some((damage, radius)) = self.ability_state.get_splash_damage() {
+                                    if let Some(player_transform) = self.world.get_component::<Transform>(player_entity) {
+                                        let player_pos = player_transform.position;
+
+                                        // Damage all nearby enemies
+                                        for &enemy_entity in &self.enemy_entities.clone() {
+                                            if let Some(enemy_transform) = self.world.get_component::<Transform>(enemy_entity) {
+                                                let distance = player_pos.distance(enemy_transform.position);
+                                                if distance <= radius {
+                                                    if let Some(enemy_health) = self.world.get_component_mut::<Health>(enemy_entity) {
+                                                        enemy_health.current = (enemy_health.current - damage).max(0.0);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Trigger fire damage if applicable (Nitin's ability)
+                                if let Some((dps, duration)) = self.ability_state.get_fire_damage() {
+                                    // Set all enemies on fire
+                                    for &enemy_entity in &self.enemy_entities {
+                                        self.burning_enemies.insert(enemy_entity, (duration, dps));
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
             if let Some(transform) = self.world.get_component_mut::<Transform>(player_entity) {
                 let dt = get_frame_time();
-                let depth_speed = self.player_move_speed * 0.65;
-                transform.position.x += move_input * self.player_move_speed * dt;
+                let speed_multiplier = self.ability_state.get_speed_multiplier();
+                let effective_move_speed = self.player_move_speed * speed_multiplier;
+                let depth_speed = effective_move_speed * 0.65;
+                transform.position.x += move_input * effective_move_speed * dt;
                 transform.position.y += move_depth * depth_speed * dt;
 
                 let min_depth = 340.0;
@@ -797,19 +1423,31 @@ impl State for GameplayState {
             }
         }
     }
+
+    fn should_transition(&self) -> Option<StateType> {
+        self.transition_to
+    }
 }
 
 impl GameplayState {
     fn start_wave(&mut self) {
         self.current_wave += 1;
         self.refresh_allies_for_wave();
+
+        // Special boss battle on rooftop - spawn immediately
+        if self.current_map == MapType::Rooftop && self.current_wave == 1 {
+            self.spawn_big_boss();
+            self.enemies_to_spawn = 0;
+            return;
+        }
+
         let enemy_count = match self.current_map {
             MapType::Classroom => 3 + self.current_wave,
             MapType::Hallway => 5 + self.current_wave,
             MapType::Cafeteria => 6 + self.current_wave,
             MapType::Gym => 8 + self.current_wave,
             MapType::Library => 7 + self.current_wave,
-            MapType::Rooftop => 10,
+            MapType::Rooftop => 0, // Bosses already spawned
         };
         self.enemies_to_spawn = enemy_count;
         self.spawn_timer = 0.5;
@@ -1411,6 +2049,83 @@ impl GameplayState {
                 }
             }
         }
+
+        // Render ability UI
+        use crate::data::Character;
+        let character = Character::get_by_id(self.selected_character);
+        let ability_y = 120.0;
+
+        // Ability icon/button
+        let ability_color = if self.ability_state.can_activate() {
+            Color::new(0.0, 0.8, 0.0, 0.8)
+        } else if self.ability_state.active {
+            Color::new(1.0, 0.8, 0.0, 0.8)
+        } else {
+            Color::new(0.3, 0.3, 0.3, 0.8)
+        };
+
+        draw_rectangle(50.0, ability_y, 200.0, 40.0, Color::new(0.0, 0.0, 0.0, 0.6));
+
+        if self.ability_state.active {
+            let remaining_pct = self.ability_state.active_time / character.duration;
+            draw_rectangle(50.0, ability_y, 200.0 * remaining_pct, 40.0, ability_color);
+        } else if self.ability_state.cooldown_time > 0.0 {
+            let cooldown_pct = 1.0 - (self.ability_state.cooldown_time / character.cooldown);
+            draw_rectangle(50.0, ability_y, 200.0 * cooldown_pct, 40.0, ability_color);
+        } else {
+            draw_rectangle(50.0, ability_y, 200.0, 40.0, ability_color);
+        }
+
+        draw_rectangle_lines(50.0, ability_y, 200.0, 40.0, 2.0, WHITE);
+
+        let ability_text = if self.ability_state.active {
+            format!("{} [{:.1}s]", character.ability_name, self.ability_state.active_time)
+        } else if self.ability_state.cooldown_time > 0.0 {
+            format!("{} [{:.1}s]", character.ability_name, self.ability_state.cooldown_time)
+        } else {
+            format!("{} [E]", character.ability_name)
+        };
+
+        draw_text(&ability_text, 60.0, ability_y + 25.0, 18.0, WHITE);
+
+        // Show voice line if active
+        if let Some(ref voice_line) = self.ability_voice_line {
+            let voice_y = screen_height() * 0.3;
+            let voice_size = 40.0;
+            let voice_dims = measure_text(voice_line, None, voice_size as u16, 1.0);
+
+            // Background
+            draw_rectangle(
+                screen_width() * 0.5 - voice_dims.width * 0.5 - 20.0,
+                voice_y - 40.0,
+                voice_dims.width + 40.0,
+                60.0,
+                Color::new(0.0, 0.0, 0.0, 0.7),
+            );
+
+            // Text with glow effect
+            let glow_color = Color::new(1.0, 1.0, 0.0, 0.5);
+            for dx in [-2.0, 0.0, 2.0] {
+                for dy in [-2.0, 0.0, 2.0] {
+                    if dx != 0.0 || dy != 0.0 {
+                        draw_text(
+                            voice_line,
+                            screen_width() * 0.5 - voice_dims.width * 0.5 + dx,
+                            voice_y + dy,
+                            voice_size,
+                            glow_color,
+                        );
+                    }
+                }
+            }
+            draw_text(
+                voice_line,
+                screen_width() * 0.5 - voice_dims.width * 0.5,
+                voice_y,
+                voice_size,
+                YELLOW,
+            );
+        }
     }
 
     fn character_display_name(&self, character: &CharacterType, is_player: bool) -> String {
@@ -1430,7 +2145,8 @@ impl GameplayState {
             CharacterType::Chef => "Chef".to_string(),
             CharacterType::Librarian => "Librarian".to_string(),
             CharacterType::Coach => "Coach".to_string(),
-            CharacterType::Bastiaan => "Bastiaan".to_string(),
+            CharacterType::Bastiaan => "BOSS BASTIAAN".to_string(),
+            CharacterType::KeizerBomTaha => "Keizer Bom Taha".to_string(),
         }
     }
 
@@ -1439,166 +2155,187 @@ impl GameplayState {
             return;
         }
 
-        let font_size = 18.0;
+        let font_size = 20.0;
         let metrics = measure_text(name, None, font_size as u16, 1.0);
-        let width = metrics.width + 16.0;
-        let height = metrics.height + 12.0;
+        let width = metrics.width + 24.0;
+        let height = metrics.height + 14.0;
         let x = pos.x - width * 0.5;
-        let y = pos.y - 110.0;
+        let y = pos.y - 115.0;
 
-        draw_rectangle(x, y, width, height, Color::new(0.0, 0.0, 0.0, 0.6));
-        draw_rectangle_lines(x, y, width, height, 1.5, Color::new(1.0, 1.0, 1.0, 0.6));
+        // Shadow
+        draw_rectangle(x + 2.0, y + 2.0, width, height, Color::new(0.0, 0.0, 0.0, 0.6));
+
+        // Background with gradient effect
+        draw_rectangle(x, y, width, height, Color::new(0.0, 0.0, 0.0, 0.85));
+
+        // Top highlight
+        draw_rectangle(x, y, width, height * 0.3, Color::new(color.r * 0.5, color.g * 0.5, color.b * 0.5, 0.6));
+
+        // Colored border with glow
+        draw_rectangle_lines(x, y, width, height, 2.5, color);
+        draw_rectangle_lines(x - 1.0, y - 1.0, width + 2.0, height + 2.0, 1.0,
+            Color::new(color.r, color.g, color.b, 0.4));
+
+        // Text with subtle shadow
+        draw_text(
+            name,
+            pos.x - metrics.width * 0.5 + 1.0,
+            y + height - 4.0,
+            font_size,
+            Color::new(0.0, 0.0, 0.0, 0.7),
+        );
+
+        // Main text
         draw_text(
             name,
             pos.x - metrics.width * 0.5,
-            y + height - 6.0,
+            y + height - 5.0,
             font_size,
             color,
         );
     }
 
     fn render_classroom(&self) {
+        let time = get_time() as f32;
+
+        // Enhanced floor with tiles
         let floor_y = 600.0;
-        draw_rectangle(
-            0.0,
-            floor_y,
-            screen_width(),
-            screen_height() - floor_y,
-            Color::new(0.4, 0.35, 0.3, 1.0),
-        );
-
-        draw_rectangle(
-            0.0,
-            100.0,
-            screen_width(),
-            20.0,
-            Color::new(0.3, 0.25, 0.2, 1.0),
-        );
-        draw_rectangle(50.0, 120.0, 300.0, 200.0, Color::new(0.1, 0.3, 0.1, 1.0));
-        draw_rectangle_lines(
-            50.0,
-            120.0,
-            300.0,
-            200.0,
-            5.0,
-            Color::new(0.4, 0.35, 0.3, 1.0),
-        );
-
-        let text = "BAS VEGEN";
-        draw_text(text, 80.0, 200.0, 40.0, WHITE);
-        draw_text("A + B = C", 80.0, 250.0, 30.0, WHITE);
-
-        for i in 0..4 {
-            let desk_x = 450.0 + (i as f32 * 150.0);
-            draw_rectangle(desk_x, 450.0, 120.0, 80.0, Color::new(0.5, 0.4, 0.3, 1.0));
-            draw_rectangle(
-                desk_x + 40.0,
-                380.0,
-                40.0,
-                70.0,
-                Color::new(0.3, 0.3, 0.35, 1.0),
-            );
+        for i in 0..20 {
+            for j in 0..4 {
+                let x = i as f32 * 80.0;
+                let y = floor_y + j as f32 * 40.0;
+                let tile_shade = if (i + j) % 2 == 0 { 0.45 } else { 0.42 };
+                draw_rectangle(x, y, 80.0, 40.0, Color::new(tile_shade, tile_shade - 0.05, tile_shade - 0.1, 1.0));
+                draw_rectangle_lines(x, y, 80.0, 40.0, 1.0, Color::new(0.3, 0.25, 0.2, 0.3));
+            }
         }
 
-        draw_rectangle(
-            screen_width() - 150.0,
-            200.0,
-            100.0,
-            150.0,
-            Color::new(0.6, 0.5, 0.4, 1.0),
-        );
-        draw_rectangle(
-            screen_width() - 140.0,
-            210.0,
-            80.0,
-            40.0,
-            Color::new(0.8, 0.8, 0.8, 1.0),
-        );
+        // Ceiling beam with depth
+        draw_rectangle(0.0, 95.0, screen_width(), 30.0, Color::new(0.25, 0.2, 0.15, 1.0));
+        draw_rectangle(0.0, 100.0, screen_width(), 20.0, Color::new(0.35, 0.28, 0.22, 1.0));
+        draw_rectangle(0.0, 118.0, screen_width(), 2.0, Color::new(0.15, 0.12, 0.1, 1.0));
 
-        draw_rectangle(
-            screen_width() - 250.0,
-            400.0,
-            50.0,
-            100.0,
-            Color::new(0.2, 0.4, 0.2, 1.0),
-        );
-        draw_circle(
-            screen_width() - 225.0,
-            380.0,
-            40.0,
-            Color::new(0.3, 0.6, 0.3, 1.0),
-        );
+        // Enhanced blackboard with frame
+        draw_rectangle(45.0, 115.0, 310.0, 210.0, Color::new(0.15, 0.12, 0.1, 1.0)); // Shadow
+        draw_rectangle(40.0, 110.0, 310.0, 210.0, Color::new(0.5, 0.42, 0.35, 1.0)); // Frame
+        draw_rectangle(50.0, 120.0, 290.0, 190.0, Color::new(0.08, 0.25, 0.08, 1.0)); // Board
 
-        for i in 0..8 {
-            let window_x = 400.0 + (i as f32 * 120.0);
-            if window_x < screen_width() - 200.0 {
-                draw_rectangle(window_x, 150.0, 80.0, 120.0, Color::new(0.7, 0.8, 0.9, 0.3));
-                draw_rectangle_lines(
-                    window_x,
-                    150.0,
-                    80.0,
-                    120.0,
-                    3.0,
-                    Color::new(0.4, 0.35, 0.3, 1.0),
-                );
-                draw_line(
-                    window_x + 40.0,
-                    150.0,
-                    window_x + 40.0,
-                    270.0,
-                    2.0,
-                    Color::new(0.4, 0.35, 0.3, 1.0),
-                );
-                draw_line(
-                    window_x,
-                    210.0,
-                    window_x + 80.0,
-                    210.0,
-                    2.0,
-                    Color::new(0.4, 0.35, 0.3, 1.0),
-                );
+        // Frame details
+        draw_rectangle(45.0, 115.0, 300.0, 5.0, Color::new(0.6, 0.52, 0.45, 1.0));
+        draw_rectangle(45.0, 115.0, 5.0, 200.0, Color::new(0.6, 0.52, 0.45, 1.0));
+
+        // Chalk text with glow
+        let text = "BAS VEGEN";
+        draw_text(text, 82.0, 202.0, 42.0, Color::new(0.7, 0.7, 0.7, 0.3));
+        draw_text(text, 80.0, 200.0, 42.0, WHITE);
+        draw_text("A + B = C", 82.0, 252.0, 32.0, Color::new(0.7, 0.7, 0.7, 0.3));
+        draw_text("A + B = C", 80.0, 250.0, 32.0, WHITE);
+
+        // Chalk ledge
+        draw_rectangle(50.0, 308.0, 290.0, 8.0, Color::new(0.4, 0.34, 0.28, 1.0));
+
+        // Enhanced desks with shadows and depth
+        for i in 0..4 {
+            let desk_x = 450.0 + (i as f32 * 150.0);
+
+            // Desk shadow
+            draw_rectangle(desk_x + 3.0, 453.0, 120.0, 80.0, Color::new(0.0, 0.0, 0.0, 0.3));
+
+            // Desk top with highlight
+            draw_rectangle(desk_x, 450.0, 120.0, 80.0, Color::new(0.55, 0.45, 0.35, 1.0));
+            draw_rectangle(desk_x, 450.0, 120.0, 15.0, Color::new(0.65, 0.55, 0.45, 1.0)); // Highlight
+            draw_rectangle_lines(desk_x, 450.0, 120.0, 80.0, 2.0, Color::new(0.4, 0.32, 0.25, 1.0));
+
+            // Chair with backrest
+            draw_rectangle(desk_x + 40.0, 383.0, 40.0, 70.0, Color::new(0.25, 0.25, 0.3, 1.0));
+            draw_rectangle(desk_x + 42.0, 380.0, 36.0, 68.0, Color::new(0.35, 0.35, 0.4, 1.0));
+            draw_rectangle(desk_x + 35.0, 360.0, 50.0, 25.0, Color::new(0.35, 0.35, 0.4, 1.0));
+        }
+
+        // Enhanced teacher's desk
+        let teacher_x = screen_width() - 160.0;
+        draw_rectangle(teacher_x + 5.0, 203.0, 110.0, 155.0, Color::new(0.0, 0.0, 0.0, 0.3));
+        draw_rectangle(teacher_x, 198.0, 110.0, 155.0, Color::new(0.65, 0.55, 0.45, 1.0));
+        draw_rectangle(teacher_x, 198.0, 110.0, 20.0, Color::new(0.75, 0.65, 0.55, 1.0));
+        draw_rectangle_lines(teacher_x, 198.0, 110.0, 155.0, 3.0, Color::new(0.5, 0.4, 0.32, 1.0));
+
+        // Computer/papers on desk
+        draw_rectangle(teacher_x + 10.0, 208.0, 45.0, 35.0, Color::new(0.85, 0.85, 0.85, 1.0));
+        draw_rectangle(teacher_x + 12.0, 210.0, 41.0, 31.0, Color::new(0.2, 0.3, 0.4, 1.0));
+        draw_rectangle(teacher_x + 60.0, 215.0, 35.0, 25.0, Color::new(0.95, 0.95, 0.85, 1.0));
+
+        // Enhanced plant
+        draw_rectangle(screen_width() - 255.0, 403.0, 60.0, 105.0, Color::new(0.0, 0.0, 0.0, 0.3));
+        draw_rectangle(screen_width() - 260.0, 400.0, 60.0, 105.0, Color::new(0.45, 0.3, 0.2, 1.0));
+        draw_circle(screen_width() - 230.0, 380.0, 50.0, Color::new(0.25, 0.55, 0.25, 1.0));
+        draw_circle(screen_width() - 240.0, 390.0, 35.0, Color::new(0.3, 0.6, 0.3, 1.0));
+        draw_circle(screen_width() - 220.0, 395.0, 30.0, Color::new(0.35, 0.65, 0.35, 1.0));
+
+        // Enhanced windows with light rays
+        for i in 0..7 {
+            let window_x = 380.0 + (i as f32 * 130.0);
+            if window_x < screen_width() - 220.0 {
+                // Window shadow
+                draw_rectangle(window_x + 3.0, 153.0, 85.0, 125.0, Color::new(0.0, 0.0, 0.0, 0.2));
+
+                // Window frame
+                draw_rectangle(window_x - 5.0, 145.0, 95.0, 135.0, Color::new(0.45, 0.38, 0.3, 1.0));
+
+                // Glass with subtle animation
+                let light_variation = ((time + i as f32 * 0.5).sin() * 0.05 + 0.75) as f32;
+                draw_rectangle(window_x, 150.0, 85.0, 125.0, Color::new(0.65 * light_variation, 0.75 * light_variation, 0.95, 0.4));
+
+                // Light rays through window
+                for ray in 0..3 {
+                    let ray_x = window_x + 15.0 + ray as f32 * 25.0;
+                    let ray_alpha = 0.1 + ((time * 0.5 + ray as f32 * 0.3).sin() * 0.05) as f32;
+                    for y_step in 0..10 {
+                        let y_pos = 275.0 + y_step as f32 * 35.0;
+                        draw_line(ray_x, 275.0, ray_x + 15.0, y_pos, 25.0, Color::new(1.0, 1.0, 0.9, ray_alpha));
+                    }
+                }
+
+                // Window dividers
+                draw_rectangle_lines(window_x, 150.0, 85.0, 125.0, 4.0, Color::new(0.4, 0.33, 0.26, 1.0));
+                draw_line(window_x + 42.5, 150.0, window_x + 42.5, 275.0, 3.0, Color::new(0.4, 0.33, 0.26, 1.0));
+                draw_line(window_x, 212.5, window_x + 85.0, 212.5, 3.0, Color::new(0.4, 0.33, 0.26, 1.0));
             }
         }
     }
 
     fn render_hallway(&self) {
-        let floor_y = 600.0;
-        draw_rectangle(
-            0.0,
-            floor_y,
-            screen_width(),
-            screen_height() - floor_y,
-            Color::new(0.6, 0.5, 0.4, 1.0),
-        );
+        let time = get_time() as f32;
 
-        for i in 0..20 {
-            let locker_x = i as f32 * 80.0;
-            draw_rectangle(locker_x, 150.0, 70.0, 350.0, Color::new(0.4, 0.4, 0.6, 1.0));
-            draw_rectangle_lines(
-                locker_x,
-                150.0,
-                70.0,
-                350.0,
-                2.0,
-                Color::new(0.3, 0.3, 0.5, 1.0),
-            );
-            draw_circle(locker_x + 35.0, 325.0, 5.0, Color::new(0.7, 0.7, 0.7, 1.0));
+        // Tiled floor
+        let floor_y = 600.0;
+        for i in 0..25 {
+            for j in 0..3 {
+                let x = i as f32 * 70.0;
+                let y = floor_y + j as f32 * 50.0;
+                let shade = if (i + j) % 2 == 0 { 0.65 } else { 0.6 };
+                draw_rectangle(x, y, 70.0, 50.0, Color::new(shade, shade - 0.08, shade - 0.15, 1.0));
+            }
         }
 
-        draw_rectangle(
-            0.0,
-            0.0,
-            screen_width(),
-            150.0,
-            Color::new(0.9, 0.9, 0.85, 1.0),
-        );
+        // Enhanced lockers with depth
+        for i in 0..20 {
+            let locker_x = i as f32 * 80.0;
+            draw_rectangle(locker_x + 3.0, 153.0, 70.0, 350.0, Color::new(0.0, 0.0, 0.0, 0.3));
+            draw_rectangle(locker_x, 150.0, 70.0, 350.0, Color::new(0.45, 0.45, 0.65, 1.0));
+            draw_rectangle(locker_x, 150.0, 70.0, 30.0, Color::new(0.55, 0.55, 0.75, 1.0));
+            draw_rectangle_lines(locker_x, 150.0, 70.0, 350.0, 3.0, Color::new(0.35, 0.35, 0.55, 1.0));
+            draw_circle(locker_x + 35.0, 325.0, 7.0, Color::new(0.2, 0.2, 0.2, 1.0));
+            draw_circle(locker_x + 35.0, 325.0, 5.0, Color::new(0.8, 0.8, 0.8, 1.0));
+            draw_line(locker_x, 320.0, locker_x + 70.0, 320.0, 2.0, Color::new(0.35, 0.35, 0.55, 1.0));
+        }
+
+        // Ceiling with lights
+        draw_rectangle(0.0, 0.0, screen_width(), 150.0, Color::new(0.92, 0.92, 0.87, 1.0));
         for i in 0..10 {
-            draw_circle(
-                i as f32 * 200.0 + 100.0,
-                75.0,
-                30.0,
-                Color::new(1.0, 0.95, 0.8, 1.0),
-            );
+            let light_x = i as f32 * 200.0 + 100.0;
+            let glow = ((time * 2.0 + i as f32).sin() * 0.1 + 0.9) as f32;
+            draw_circle(light_x, 75.0, 35.0, Color::new(1.0 * glow, 0.95 * glow, 0.8 * glow, 0.6));
+            draw_circle(light_x, 75.0, 28.0, Color::new(1.0, 0.98, 0.85, 1.0));
         }
     }
 
@@ -1864,93 +2601,110 @@ impl GameplayState {
 
         match &fighter.character_type {
             CharacterType::Bas => {
-                draw_circle(pos.x, pos.y - 45.0, 25.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                // HEAD with depth and shading
+                draw_circle(pos.x + 1.5, pos.y - 43.0, 26.0, Color::new(0.7, 0.6, 0.5, 0.5)); // Shadow
+                draw_circle(pos.x, pos.y - 45.0, 26.0, Color::new(0.92, 0.82, 0.72, 1.0)); // Base
+                draw_circle(pos.x - 6.0, pos.y - 48.0, 10.0, Color::new(1.0, 0.9, 0.8, 0.4)); // Highlight
 
-                draw_rectangle(
-                    pos.x - 20.0,
-                    pos.y - 20.0,
-                    40.0,
-                    50.0,
-                    Color::new(0.2, 0.3, 0.8, 1.0),
-                );
+                // NECK
+                draw_rectangle(pos.x - 8.0, pos.y - 22.0, 16.0, 10.0, Color::new(0.9, 0.8, 0.7, 1.0));
 
-                draw_rectangle(
-                    pos.x - 15.0,
-                    pos.y + 30.0,
-                    30.0,
-                    40.0,
-                    Color::new(0.3, 0.3, 0.4, 1.0),
-                );
+                // TORSO with blue shirt and depth
+                draw_rectangle(pos.x - 22.0, pos.y - 18.0, 44.0, 52.0, Color::new(0.15, 0.2, 0.6, 1.0)); // Shadow layer
+                draw_rectangle(pos.x - 20.0, pos.y - 20.0, 40.0, 50.0, Color::new(0.2, 0.35, 0.85, 1.0)); // Main shirt
+                draw_rectangle(pos.x - 20.0, pos.y - 20.0, 40.0, 8.0, Color::new(0.3, 0.45, 0.95, 1.0)); // Shoulder highlight
 
-                draw_rectangle(
-                    pos.x - 10.0,
-                    pos.y + 70.0,
-                    8.0,
-                    20.0,
-                    Color::new(0.2, 0.2, 0.2, 1.0),
-                );
-                draw_rectangle(
-                    pos.x + 2.0,
-                    pos.y + 70.0,
-                    8.0,
-                    20.0,
-                    Color::new(0.2, 0.2, 0.2, 1.0),
-                );
+                // Collar
+                draw_line(pos.x - 10.0, pos.y - 20.0, pos.x, pos.y - 10.0, 3.0, Color::new(0.15, 0.25, 0.7, 1.0));
+                draw_line(pos.x + 10.0, pos.y - 20.0, pos.x, pos.y - 10.0, 3.0, Color::new(0.15, 0.25, 0.7, 1.0));
 
+                // Shirt buttons
+                for i in 0..3 {
+                    let button_y = pos.y - 8.0 + i as f32 * 12.0;
+                    draw_circle(pos.x, button_y, 2.5, Color::new(0.9, 0.9, 0.9, 1.0));
+                    draw_circle(pos.x, button_y, 1.5, Color::new(0.15, 0.2, 0.6, 1.0));
+                }
+
+                // PANTS with shading
+                draw_rectangle(pos.x - 16.0, pos.y + 32.0, 32.0, 42.0, Color::new(0.25, 0.25, 0.35, 1.0)); // Shadow
+                draw_rectangle(pos.x - 15.0, pos.y + 30.0, 30.0, 40.0, Color::new(0.35, 0.35, 0.45, 1.0)); // Main pants
+                draw_rectangle(pos.x - 15.0, pos.y + 30.0, 30.0, 6.0, Color::new(0.45, 0.45, 0.55, 1.0)); // Waist highlight
+
+                // Belt
+                draw_rectangle(pos.x - 16.0, pos.y + 28.0, 32.0, 5.0, Color::new(0.2, 0.15, 0.1, 1.0));
+                draw_rectangle(pos.x - 4.0, pos.y + 27.0, 8.0, 7.0, Color::new(0.6, 0.5, 0.3, 1.0)); // Buckle
+                draw_rectangle(pos.x - 2.0, pos.y + 28.0, 4.0, 5.0, Color::new(0.4, 0.3, 0.2, 1.0));
+
+                // LEGS with depth
+                draw_rectangle(pos.x - 11.0, pos.y + 72.0, 10.0, 22.0, Color::new(0.25, 0.25, 0.35, 1.0));
+                draw_rectangle(pos.x + 1.0, pos.y + 72.0, 10.0, 22.0, Color::new(0.25, 0.25, 0.35, 1.0));
+                draw_rectangle(pos.x - 10.0, pos.y + 70.0, 8.0, 20.0, Color::new(0.35, 0.35, 0.45, 1.0));
+                draw_rectangle(pos.x + 2.0, pos.y + 70.0, 8.0, 20.0, Color::new(0.35, 0.35, 0.45, 1.0));
+
+                // SHOES with detail
+                draw_ellipse(pos.x - 6.0, pos.y + 92.0, 10.0, 6.0, 0.0, Color::new(0.15, 0.15, 0.15, 1.0));
+                draw_ellipse(pos.x + 6.0, pos.y + 92.0, 10.0, 6.0, 0.0, Color::new(0.15, 0.15, 0.15, 1.0));
+                draw_ellipse(pos.x - 6.0, pos.y + 91.0, 9.0, 5.0, 0.0, Color::new(0.25, 0.25, 0.25, 1.0));
+                draw_ellipse(pos.x + 6.0, pos.y + 91.0, 9.0, 5.0, 0.0, Color::new(0.25, 0.25, 0.25, 1.0));
+
+                // ARMS with muscles and skin tone
                 let arm_idle = Vec2::new(15.0, (time * 12.0).cos() * 1.5);
                 let arm_offset = match state {
-                    FighterState::LightAttack
-                    | FighterState::HeavyAttack
-                    | FighterState::Special
-                    | FighterState::Super => {
+                    FighterState::LightAttack | FighterState::HeavyAttack | FighterState::Special | FighterState::Super => {
                         Vec2::new(28.0 + 40.0 * attack_phase, -12.0 - 24.0 * attack_phase)
                     }
                     _ => arm_idle,
                 };
-                draw_rectangle(
-                    pos.x - 25.0,
-                    pos.y - 10.0,
-                    8.0,
-                    30.0,
-                    Color::new(0.9, 0.8, 0.7, 1.0),
-                );
-                draw_rectangle(
-                    pos.x + 17.0,
-                    pos.y - 10.0 + arm_offset.y,
-                    8.0,
-                    30.0,
-                    Color::new(0.9, 0.8, 0.7, 1.0),
-                );
 
-                if matches!(state, FighterState::LightAttack | FighterState::HeavyAttack) {
-                    draw_circle(
-                        pos.x + 25.0 + arm_offset.x,
-                        pos.y + arm_offset.y,
-                        8.0,
-                        Color::new(0.9, 0.8, 0.7, 1.0),
-                    );
+                // Left arm (back)
+                draw_rectangle(pos.x - 26.0, pos.y - 9.0, 10.0, 32.0, Color::new(0.82, 0.72, 0.62, 1.0));
+                draw_rectangle(pos.x - 25.0, pos.y - 10.0, 8.0, 30.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                draw_rectangle(pos.x - 25.0, pos.y - 10.0, 8.0, 8.0, Color::new(1.0, 0.9, 0.8, 0.6)); // Highlight
+
+                // Right arm (front, animated)
+                draw_rectangle(pos.x + 18.0, pos.y - 9.0 + arm_offset.y, 10.0, 32.0, Color::new(0.82, 0.72, 0.62, 1.0));
+                draw_rectangle(pos.x + 17.0, pos.y - 10.0 + arm_offset.y, 8.0, 30.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                draw_rectangle(pos.x + 17.0, pos.y - 10.0 + arm_offset.y, 8.0, 8.0, Color::new(1.0, 0.9, 0.8, 0.6));
+
+                // HANDS/FISTS
+                if matches!(state, FighterState::LightAttack | FighterState::HeavyAttack | FighterState::Special | FighterState::Super) {
+                    draw_circle(pos.x + 26.0 + arm_offset.x, pos.y + arm_offset.y + 2.0, 10.0, Color::new(0.82, 0.72, 0.62, 1.0));
+                    draw_circle(pos.x + 25.0 + arm_offset.x, pos.y + arm_offset.y, 9.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                    self.render_attack_slash(pos + Vec2::new(25.0 + arm_offset.x, arm_offset.y), fighter, attack_phase);
+                } else {
+                    draw_circle(pos.x + 17.0, pos.y + 22.0, 6.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                    draw_circle(pos.x - 25.0, pos.y + 22.0, 6.0, Color::new(0.9, 0.8, 0.7, 1.0));
                 }
 
-                draw_circle(
-                    pos.x - 8.0,
-                    pos.y - 45.0,
-                    3.0,
-                    Color::new(0.2, 0.2, 0.2, 1.0),
-                );
-                draw_circle(
-                    pos.x + 8.0,
-                    pos.y - 45.0,
-                    3.0,
-                    Color::new(0.2, 0.2, 0.2, 1.0),
-                );
+                // FACE DETAILS
+                // Eyes
+                draw_circle(pos.x - 9.0, pos.y - 47.0, 5.0, Color::new(1.0, 1.0, 1.0, 1.0));
+                draw_circle(pos.x + 9.0, pos.y - 47.0, 5.0, Color::new(1.0, 1.0, 1.0, 1.0));
+                draw_circle(pos.x - 8.0, pos.y - 46.0, 3.5, Color::new(0.15, 0.3, 0.5, 1.0));
+                draw_circle(pos.x + 8.0, pos.y - 46.0, 3.5, Color::new(0.15, 0.3, 0.5, 1.0));
+                draw_circle(pos.x - 7.0, pos.y - 47.0, 1.5, Color::new(1.0, 1.0, 1.0, 0.8)); // Glint
+                draw_circle(pos.x + 9.0, pos.y - 47.0, 1.5, Color::new(1.0, 1.0, 1.0, 0.8));
 
-                draw_rectangle(
-                    pos.x - 20.0,
-                    pos.y - 65.0,
-                    40.0,
-                    5.0,
-                    Color::new(0.4, 0.3, 0.2, 1.0),
-                );
+                // Eyebrows
+                draw_line(pos.x - 12.0, pos.y - 52.0, pos.x - 5.0, pos.y - 53.0, 2.0, Color::new(0.3, 0.25, 0.2, 1.0));
+                draw_line(pos.x + 12.0, pos.y - 52.0, pos.x + 5.0, pos.y - 53.0, 2.0, Color::new(0.3, 0.25, 0.2, 1.0));
+
+                // Nose
+                draw_line(pos.x, pos.y - 44.0, pos.x + 2.0, pos.y - 40.0, 2.0, Color::new(0.82, 0.72, 0.62, 1.0));
+
+                // Mouth
+                let mouth_curve_y = if matches!(state, FighterState::Hitstun) { -36.0 } else { -38.0 };
+                draw_line(pos.x - 6.0, pos.y + mouth_curve_y, pos.x + 6.0, pos.y + mouth_curve_y, 2.0, Color::new(0.6, 0.3, 0.3, 1.0));
+
+                // HAIR with volume
+                draw_circle(pos.x - 10.0, pos.y - 60.0, 12.0, Color::new(0.35, 0.28, 0.22, 1.0));
+                draw_circle(pos.x + 8.0, pos.y - 62.0, 11.0, Color::new(0.35, 0.28, 0.22, 1.0));
+                draw_circle(pos.x, pos.y - 65.0, 13.0, Color::new(0.35, 0.28, 0.22, 1.0));
+                draw_circle(pos.x - 15.0, pos.y - 55.0, 10.0, Color::new(0.35, 0.28, 0.22, 1.0));
+                draw_circle(pos.x + 13.0, pos.y - 57.0, 9.0, Color::new(0.35, 0.28, 0.22, 1.0));
+
+                // Hair highlights
+                draw_circle(pos.x - 5.0, pos.y - 63.0, 5.0, Color::new(0.45, 0.38, 0.32, 0.6));
             }
             CharacterType::Wolters => {
                 draw_circle(pos.x, pos.y - 45.0, 28.0, Color::new(0.9, 0.7, 0.6, 1.0));
@@ -2647,6 +3401,40 @@ impl GameplayState {
                 );
                 draw_circle(pos.x, pos.y - 62.0, 10.0, Color::new(0.1, 0.1, 0.1, 1.0));
             }
+            CharacterType::KeizerBomTaha => {
+                // Plane body - metallic silver
+                draw_rectangle(pos.x - 50.0, pos.y - 20.0, 100.0, 35.0, Color::new(0.7, 0.7, 0.75, 1.0));
+                draw_rectangle(pos.x - 48.0, pos.y - 18.0, 96.0, 31.0, Color::new(0.8, 0.8, 0.85, 1.0));
+
+                // Cockpit window
+                draw_rectangle(pos.x - 30.0, pos.y - 15.0, 25.0, 15.0, Color::new(0.3, 0.5, 0.7, 0.7));
+
+                // Wings
+                draw_rectangle(pos.x - 80.0, pos.y, 160.0, 12.0, Color::new(0.65, 0.65, 0.7, 1.0));
+
+                // Keizer head in cockpit
+                draw_circle(pos.x - 17.0, pos.y - 8.0, 10.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                draw_circle(pos.x - 20.0, pos.y - 10.0, 3.0, Color::new(0.2, 0.2, 0.2, 1.0));
+                draw_circle(pos.x - 14.0, pos.y - 10.0, 3.0, Color::new(0.2, 0.2, 0.2, 1.0));
+
+                // Propeller (animated)
+                let prop_angle = time * 20.0;
+                for i in 0..3 {
+                    let angle = prop_angle + (i as f32 * std::f32::consts::PI * 2.0 / 3.0);
+                    let px = pos.x + 50.0 + angle.cos() * 25.0;
+                    let py = pos.y + angle.sin() * 25.0;
+                    draw_line(pos.x + 50.0, pos.y, px, py, 3.0, Color::new(0.5, 0.5, 0.5, 0.8));
+                }
+
+                // Bombs hanging underneath
+                let bomb_offset = (time * 3.0).sin() * 3.0;
+                for i in 0..2 {
+                    let bomb_x = pos.x - 20.0 + i as f32 * 40.0;
+                    let bomb_y = pos.y + 20.0 + bomb_offset;
+                    draw_ellipse(bomb_x, bomb_y, 8.0, 12.0, 0.0, Color::new(0.2, 0.2, 0.2, 1.0));
+                    draw_ellipse(bomb_x, bomb_y - 10.0, 3.0, 5.0, 0.0, Color::new(0.8, 0.2, 0.2, 1.0)); // Fuse
+                }
+            }
         }
 
         if attack_phase > 0.0 {
@@ -2785,5 +3573,108 @@ impl GameplayState {
                 Color::new(0.7, 0.7, 0.7, 1.0),
             );
         }
+    }
+
+    fn render_dialogue_choice(&self) {
+        // Overlay to darken the screen
+        draw_rectangle(
+            0.0,
+            0.0,
+            screen_width(),
+            screen_height(),
+            Color::new(0.0, 0.0, 0.0, 0.8),
+        );
+
+        // Title
+        let title = "BOSSES DEFEATED!";
+        let title_size = 52.0;
+        let title_dims = measure_text(title, None, title_size as u16, 1.0);
+        draw_text(
+            title,
+            screen_width() * 0.5 - title_dims.width * 0.5,
+            screen_height() * 0.25,
+            title_size,
+            Color::new(1.0, 0.8, 0.0, 1.0),
+        );
+
+        // Question
+        let question = "What should we do now?";
+        let question_dims = measure_text(question, None, 32, 1.0);
+        draw_text(
+            question,
+            screen_width() * 0.5 - question_dims.width * 0.5,
+            screen_height() * 0.35,
+            32.0,
+            WHITE,
+        );
+
+        // Choice options
+        let choices = [
+            "Build a party to celebrate!",
+            "Repair the school together.",
+            "Go home and rest.",
+        ];
+
+        let choice_y_start = screen_height() * 0.45;
+        let choice_spacing = 70.0;
+
+        for (i, choice) in choices.iter().enumerate() {
+            let y = choice_y_start + i as f32 * choice_spacing;
+            let is_selected = i == self.dialogue_choice_selected;
+
+            // Draw selection box
+            if is_selected {
+                draw_rectangle(
+                    screen_width() * 0.25 - 20.0,
+                    y - 35.0,
+                    screen_width() * 0.5 + 40.0,
+                    60.0,
+                    Color::new(0.2, 0.4, 0.8, 0.5),
+                );
+                draw_rectangle_lines(
+                    screen_width() * 0.25 - 20.0,
+                    y - 35.0,
+                    screen_width() * 0.5 + 40.0,
+                    60.0,
+                    3.0,
+                    Color::new(0.4, 0.6, 1.0, 1.0),
+                );
+
+                // Arrow indicator
+                draw_text(
+                    "▶",
+                    screen_width() * 0.25 - 50.0,
+                    y + 5.0,
+                    36.0,
+                    Color::new(1.0, 0.8, 0.0, 1.0),
+                );
+            }
+
+            // Draw choice text
+            let text_color = if is_selected {
+                Color::new(1.0, 1.0, 0.8, 1.0)
+            } else {
+                Color::new(0.8, 0.8, 0.8, 1.0)
+            };
+
+            draw_text(
+                choice,
+                screen_width() * 0.25,
+                y + 5.0,
+                28.0,
+                text_color,
+            );
+        }
+
+        // Instructions
+        let instruction = "Use W/S or UP/DOWN to select, ENTER to confirm";
+        let instruction_dims = measure_text(instruction, None, 20, 1.0);
+        draw_text(
+            instruction,
+            screen_width() * 0.5 - instruction_dims.width * 0.5,
+            screen_height() * 0.85,
+            20.0,
+            Color::new(0.6, 0.6, 0.6, 1.0),
+        );
     }
 }

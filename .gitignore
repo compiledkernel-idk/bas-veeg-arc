@@ -1,6 +1,26 @@
+# Rust build artifacts
 target/
 **/*.rs.bk
+
+# Distribution builds (optional - remove this line if you want to commit builds)
+dist/
+
+# IDE and editor files
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# OS-specific files
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# Debug and test artifacts
+*.pdb
+*.exe.stackdump
+
+# Temporary files
+*.tmp
+*.log

@@ -54,6 +54,8 @@ pub struct Fighter {
     pub facing: f32,
     pub attack_timer: f32,
     pub team: Team,
+    pub consecutive_hits_taken: u32,
+    pub hit_decay_timer: f32,
 }
 
 impl Component for Fighter {}
@@ -72,6 +74,7 @@ pub enum CharacterType {
     Librarian,
     Coach,
     Bastiaan,
+    KeizerBomTaha,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -277,3 +280,11 @@ pub struct AudioEmitter {
 }
 
 impl Component for AudioEmitter {}
+
+#[derive(Clone, Debug)]
+pub struct Bomb {
+    pub damage: f32,
+    pub owner_id: u32,
+}
+
+impl Component for Bomb {}

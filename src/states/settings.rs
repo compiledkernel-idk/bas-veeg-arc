@@ -35,7 +35,7 @@ impl State for SettingsState {
     fn fixed_update(&mut self, _dt: f64) {}
 
     fn render(&mut self, _interpolation: f32) {
-        clear_background(Color::new(0.1, 0.1, 0.15, 1.0));
+        clear_background(BLACK);
 
         draw_text("SETTINGS", screen_width() * 0.5 - 100.0, 100.0, 50.0, WHITE);
 

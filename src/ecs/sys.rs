@@ -101,7 +101,7 @@ impl CombatSystem {
 }
 
 impl System for CombatSystem {
-    fn update(&mut self, world: &mut World, _dt: f32) {
+    fn update(&mut self, world: &mut World, dt: f32) {
         self.hit_registry.clear();
 
         let attackers: Vec<_> = world
@@ -187,6 +187,22 @@ impl System for CombatSystem {
         for (attacker_id, defender_id) in &self.hit_registry {
             self.apply_damage(world, *attacker_id, *defender_id);
         }
+
+        // Decay hit counter for all fighters after 2 seconds without being hit
+        let fighters: Vec<_> = world.query::<Fighter>().map(|(e, _)| e).collect();
+        for entity in fighters {
+            if let Some(fighter) = world.get_component_mut::<Fighter>(entity) {
+                if fighter.consecutive_hits_taken > 0 {
+                    fighter.hit_decay_timer += dt;
+
+                    // Reset counter after 2 seconds without being hit
+                    if fighter.hit_decay_timer >= 2.0 {
+                        fighter.consecutive_hits_taken = 0;
+                        fighter.hit_decay_timer = 0.0;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -212,29 +228,57 @@ impl CombatSystem {
         let mut damage = 10.0;
 
         let attacker_entity = EntityId(attacker_id);
+        let defender_entity = EntityId(defender_id);
 
         if let Some(fighter) = world.get_component::<Fighter>(attacker_entity) {
             if fighter.character_type == CharacterType::Bas {
                 damage *= self.player_attack_multiplier;
+            } else if fighter.character_type == CharacterType::Bastiaan {
+                // BIG BOSS Bastiaan does strong damage
+                damage = 12.0;
+            } else if fighter.team == Team::Enemy {
+                // Regular enemies do moderate damage
+                damage = 6.0;
+            } else if fighter.team == Team::Ally {
+                // Ally attacks do strong damage
+                damage = 12.0;
             }
         }
 
         if let (Some(attacker_fighter), Some(defender_fighter)) = (
             world.get_component::<Fighter>(attacker_entity),
-            world.get_component::<Fighter>(EntityId(defender_id)),
+            world.get_component::<Fighter>(defender_entity),
         ) {
             if attacker_fighter.team.is_allied(defender_fighter.team) {
                 return;
             }
         }
 
-        if let Some(health) = world.get_component_mut::<Health>(EntityId(defender_id)) {
+        if let Some(health) = world.get_component_mut::<Health>(defender_entity) {
             health.current = (health.current - damage).max(0.0);
         }
 
-        if let Some(fighter) = world.get_component_mut::<Fighter>(EntityId(defender_id)) {
-            fighter.hitstun = 0.5;
-            fighter.state = FighterState::Hitstun;
+        // 3-hit stun mechanic: Only apply hitstun if defender is player and has been hit 3 times
+        if let Some(fighter) = world.get_component_mut::<Fighter>(defender_entity) {
+            // Check if defender is the player
+            let is_player = fighter.character_type == CharacterType::Bas;
+
+            if is_player {
+                // Increment consecutive hit counter
+                fighter.consecutive_hits_taken += 1;
+                fighter.hit_decay_timer = 0.0; // Reset decay timer
+
+                // Only apply hitstun on 3rd hit
+                if fighter.consecutive_hits_taken >= 3 {
+                    fighter.hitstun = 0.5;
+                    fighter.state = FighterState::Hitstun;
+                    fighter.consecutive_hits_taken = 0; // Reset counter after stun
+                }
+            } else {
+                // Non-player entities get stunned immediately (old behavior)
+                fighter.hitstun = 0.5;
+                fighter.state = FighterState::Hitstun;
+            }
         }
 
         let push_dir = if let (Some(attacker_transform), Some(defender_transform)) = (
@@ -315,8 +359,9 @@ impl System for AISystem {
                         let ready = ai.state_timer >= ai.reaction_delay;
                         if ready {
                             ai.state_timer = 0.0;
-                            ai.reaction_delay = (0.28_f32 - ai.difficulty * 0.12_f32).max(0.14_f32)
-                                + rand::gen_range(0.0, 0.12);
+                            // Increased cooldown: enemies attack less frequently
+                            ai.reaction_delay = (0.8_f32 - ai.difficulty * 0.3_f32).max(0.5_f32)
+                                + rand::gen_range(0.0, 0.3);
                         }
 
                         (ai.behavior.clone(), ai.target_entity, ai.difficulty, ready)
@@ -336,8 +381,14 @@ impl System for AISystem {
 
             if need_new_target {
                 let new_target = match team {
-                    Team::Enemy => self.find_player(world),
-                    Team::Ally => self.find_nearest_by_team(world, entity, Team::Enemy),
+                    Team::Enemy => {
+                        // Enemies target both player and allies (anyone not on enemy team)
+                        self.find_nearest_non_ally(world, entity, team)
+                    }
+                    Team::Ally => {
+                        // Allies only target enemies
+                        self.find_nearest_by_team(world, entity, Team::Enemy)
+                    }
                     Team::Player => None,
                 };
                 if let Some(ai) = world.get_component_mut::<AIController>(entity) {
@@ -450,6 +501,41 @@ impl AISystem {
 
         for (entity, fighter) in world.query::<Fighter>() {
             if entity == origin || fighter.team != team {
+                continue;
+            }
+
+            if let Some(transform) = world.get_component::<Transform>(entity) {
+                let dist_sq = (transform.position - origin_pos).length_squared();
+                if dist_sq < min_dist_sq {
+                    min_dist_sq = dist_sq;
+                    closest = Some(entity);
+                }
+            }
+        }
+
+        closest
+    }
+
+    fn find_nearest_non_ally(
+        &self,
+        world: &World,
+        origin: crate::ecs::entity::EntityId,
+        my_team: Team,
+    ) -> Option<crate::ecs::entity::EntityId> {
+        let origin_pos = world
+            .get_component::<Transform>(origin)
+            .map(|t| t.position)?;
+
+        let mut closest = None;
+        let mut min_dist_sq = f32::MAX;
+
+        for (entity, fighter) in world.query::<Fighter>() {
+            if entity == origin {
+                continue;
+            }
+
+            // Target anyone not on our team (enemies target player and allies)
+            if fighter.team == my_team {
                 continue;
             }
 
