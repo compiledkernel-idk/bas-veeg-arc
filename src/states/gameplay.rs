@@ -5,15 +5,16 @@ use crate::combat::hurtbox::Hurtbox;
 use crate::combat::inputs::InputManager;
 use crate::data::{AbilityState, CharacterId, ShopManager, UpgradeId};
 use crate::ecs::System as EcsSystem;
-use crate::states::StateType;
 use crate::ecs::{
-    AIBehavior, AIController, Bomb, BossPhase, CharacterType, EntityId, Fighter, FighterState, Health,
-    HitboxComponent, HurtboxComponent, Particle, ParticleType, Team, Transform, Velocity, World,
+    AIBehavior, AIController, Bomb, BossPhase, CharacterType, EntityId, Fighter, FighterState,
+    Health, HitboxComponent, HurtboxComponent, Particle, ParticleType, Team, Transform, Velocity,
+    World,
 };
 use crate::ecs::{
     AISystem, AnimationSystem, CombatSystem, MovementSystem, ParticleSystem, PhysicsSystem,
 };
 use crate::states::State;
+use crate::states::StateType;
 use macroquad::prelude::*;
 
 pub struct GameplayState {
@@ -88,7 +89,7 @@ struct ShopOption {
     cost: u32,
 }
 
-const SHOP_OPTIONS: [ShopOption; 3] = [
+const SHOP_OPTIONS: [ShopOption; 8] = [
     ShopOption {
         id: UpgradeId::AttackBoost,
         title: "Painted Fury",
@@ -106,6 +107,36 @@ const SHOP_OPTIONS: [ShopOption; 3] = [
         title: "Turbo Mop Shoes",
         description: "Move faster to outmaneuver classmates.",
         cost: 100,
+    },
+    ShopOption {
+        id: UpgradeId::CooldownReduction,
+        title: "Stopwatch Badge",
+        description: "Reduce ability cooldown by 20%.",
+        cost: 200,
+    },
+    ShopOption {
+        id: UpgradeId::AbilityDuration,
+        title: "Extended Effect Paint",
+        description: "Extend ability duration by 2 seconds.",
+        cost: 180,
+    },
+    ShopOption {
+        id: UpgradeId::LifeSteal,
+        title: "Vampire Canvas",
+        description: "Steal 10% of damage dealt as health.",
+        cost: 220,
+    },
+    ShopOption {
+        id: UpgradeId::DamageReduction,
+        title: "Steel Easel Armor",
+        description: "Reduce incoming damage by 15%.",
+        cost: 160,
+    },
+    ShopOption {
+        id: UpgradeId::CriticalChance,
+        title: "Lucky Brush",
+        description: "20% chance to deal double damage.",
+        cost: 250,
     },
 ];
 
@@ -233,7 +264,7 @@ impl GameplayState {
     }
 
     fn spawn_big_boss(&mut self) {
-        // Spawn GIANT Bastiaan boss - 2x size, 500 HP, 30 damage
+        // Spawn GIANT Bastiaan boss - 2x size, 800 HP, 30 damage
         let boss_entity = self.world.create_entity();
 
         self.world.add_component(
@@ -245,19 +276,38 @@ impl GameplayState {
             },
         );
 
-        self.world.add_component(boss_entity, Velocity { linear: Vec2::ZERO, angular: 0.0 });
+        self.world.add_component(
+            boss_entity,
+            Velocity {
+                linear: Vec2::ZERO,
+                angular: 0.0,
+            },
+        );
 
         self.world.add_component(
             boss_entity,
             Health {
-                current: 500.0,
-                maximum: 500.0,
+                current: 800.0,
+                maximum: 800.0,
                 armor: 0.0,
             },
         );
 
-        self.world.add_component(boss_entity, HurtboxComponent { hurtbox: Hurtbox::new_standing(), active: true });
-        self.world.add_component(boss_entity, HitboxComponent { hitbox: Hitbox::new_light(), active: false, hits_registered: Vec::new() });
+        self.world.add_component(
+            boss_entity,
+            HurtboxComponent {
+                hurtbox: Hurtbox::new_standing(),
+                active: true,
+            },
+        );
+        self.world.add_component(
+            boss_entity,
+            HitboxComponent {
+                hitbox: Hitbox::new_light(),
+                active: false,
+                hits_registered: Vec::new(),
+            },
+        );
 
         self.world.add_component(
             boss_entity,
@@ -285,7 +335,7 @@ impl GameplayState {
                 target_entity: None,
                 state_timer: 0.0,
                 reaction_delay: 0.15, // Very fast attacks
-                difficulty: 1.0, // Maximum difficulty
+                difficulty: 1.0,      // Maximum difficulty
             },
         );
 
@@ -303,19 +353,38 @@ impl GameplayState {
             },
         );
 
-        self.world.add_component(keizer_entity, Velocity { linear: Vec2::ZERO, angular: 0.0 });
+        self.world.add_component(
+            keizer_entity,
+            Velocity {
+                linear: Vec2::ZERO,
+                angular: 0.0,
+            },
+        );
 
         self.world.add_component(
             keizer_entity,
             Health {
-                current: 250.0,
-                maximum: 250.0,
+                current: 400.0,
+                maximum: 400.0,
                 armor: 0.0,
             },
         );
 
-        self.world.add_component(keizer_entity, HurtboxComponent { hurtbox: Hurtbox::new_standing(), active: true });
-        self.world.add_component(keizer_entity, HitboxComponent { hitbox: Hitbox::new_light(), active: false, hits_registered: Vec::new() });
+        self.world.add_component(
+            keizer_entity,
+            HurtboxComponent {
+                hurtbox: Hurtbox::new_standing(),
+                active: true,
+            },
+        );
+        self.world.add_component(
+            keizer_entity,
+            HitboxComponent {
+                hitbox: Hitbox::new_light(),
+                active: false,
+                hits_registered: Vec::new(),
+            },
+        );
 
         self.world.add_component(
             keizer_entity,
@@ -498,8 +567,8 @@ impl GameplayState {
         self.world.add_component(
             entity,
             Health {
-                current: 150.0,
-                maximum: 150.0,
+                current: 80.0,  // Reduced from 150.0 - allies are now squishier than player
+                maximum: 80.0,
                 armor: 0.0,
             },
         );
@@ -545,9 +614,9 @@ impl GameplayState {
             AIController {
                 behavior: AIBehavior::Support,
                 target_entity: None,
-                state_timer: rand::gen_range(0.0, 0.2),
-                reaction_delay: 0.32,
-                difficulty: 0.45,
+                state_timer: rand::gen_range(0.0, 0.5),  // More varied start times
+                reaction_delay: 0.6,  // Slower reactions (was 0.32) - less spam
+                difficulty: 0.35,  // Lower skill level (was 0.45)
             },
         );
 
@@ -677,7 +746,8 @@ impl State for GameplayState {
         // Update combat system with ability damage multiplier
         let ability_damage_mult = self.ability_state.get_damage_multiplier();
         let total_damage_mult = self.player_attack_multiplier * ability_damage_mult;
-        self.combat_system.set_player_attack_multiplier(total_damage_mult);
+        self.combat_system
+            .set_player_attack_multiplier(total_damage_mult);
 
         // Update burning enemies
         let mut enemies_to_remove = Vec::new();
@@ -739,16 +809,11 @@ impl State for GameplayState {
                 }
             }
             if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::J) {
-                // Player made a choice, continue with game
+                // Player made a choice, end the game
                 self.dialogue_choice_active = false;
                 self.boss_battle_won = true;
-                // Show response based on choice
-                match self.dialogue_choice_selected {
-                    0 => self.show_dialogue("Bas", "Laten we een feestje bouwen!", "Let's build a party!"),
-                    1 => self.show_dialogue("Bas", "We moeten de school repareren.", "We must repair the school."),
-                    2 => self.show_dialogue("Bas", "Tijd om naar huis te gaan.", "Time to go home."),
-                    _ => {}
-                }
+                // Transition to menu after choice is made
+                self.transition_to = Some(StateType::Menu);
             }
             return;
         }
@@ -773,7 +838,9 @@ impl State for GameplayState {
                         false
                     }
                 }) {
-                    if let Some(keizer_transform) = self.world.get_component::<Transform>(keizer_entity) {
+                    if let Some(keizer_transform) =
+                        self.world.get_component::<Transform>(keizer_entity)
+                    {
                         self.spawn_bomb(keizer_transform.position);
                     }
                 }
@@ -803,7 +870,9 @@ impl State for GameplayState {
                 } else {
                     // Check collision with player
                     if let Some(player_entity) = self.player_entity {
-                        if let Some(player_transform) = self.world.get_component::<Transform>(player_entity) {
+                        if let Some(player_transform) =
+                            self.world.get_component::<Transform>(player_entity)
+                        {
                             let dist = (bomb_pos - player_transform.position).length();
                             if dist < 40.0 {
                                 bombs_to_remove.push(bomb_entity);
@@ -815,7 +884,9 @@ impl State for GameplayState {
 
                     // Check collision with allies
                     for &ally_entity in &self.ally_entities {
-                        if let Some(ally_transform) = self.world.get_component::<Transform>(ally_entity) {
+                        if let Some(ally_transform) =
+                            self.world.get_component::<Transform>(ally_entity)
+                        {
                             let dist = (bomb_pos - ally_transform.position).length();
                             if dist < 40.0 && !bombs_to_remove.contains(&bomb_entity) {
                                 bombs_to_remove.push(bomb_entity);
@@ -831,7 +902,7 @@ impl State for GameplayState {
         // Apply damage to hit entities
         for entity in entities_to_damage {
             if let Some(health) = self.world.get_component_mut::<Health>(entity) {
-                health.current = (health.current - 15.0).max(0.0);
+                health.current = (health.current - 25.0).max(0.0);
             }
         }
 
@@ -920,13 +991,17 @@ impl State for GameplayState {
         if self.current_map == MapType::Rooftop
             && self.enemy_entities.is_empty()
             && !self.boss_battle_won
-            && !self.dialogue_choice_active {
+            && !self.dialogue_choice_active
+        {
             // Both bosses are dead! Show dialogue choice
             self.dialogue_choice_active = true;
             self.dialogue_choice_selected = 0;
         }
 
-        if self.enemy_entities.is_empty() && self.enemies_to_spawn == 0 && !self.dialogue_choice_active {
+        if self.enemy_entities.is_empty()
+            && self.enemies_to_spawn == 0
+            && !self.dialogue_choice_active
+        {
             self.complete_wave();
         }
 
@@ -1021,7 +1096,8 @@ impl State for GameplayState {
         // Add atmospheric particles
         let time = get_time();
         for i in 0..15 {
-            let x = ((time * 15.0 + i as f64 * 50.0).sin() * screen_width() as f64 * 0.5 + screen_width() as f64 * 0.5) as f32;
+            let x = ((time * 15.0 + i as f64 * 50.0).sin() * screen_width() as f64 * 0.5
+                + screen_width() as f64 * 0.5) as f32;
             let y = ((time * 20.0 + i as f64 * 30.0) % screen_height() as f64) as f32;
             let size = 2.0 + ((time * 2.0 + i as f64).sin() * 1.5) as f32;
             let alpha = 0.15 + ((time * 3.0 + i as f64).sin() * 0.1) as f32;
@@ -1048,7 +1124,14 @@ impl State for GameplayState {
                     // Enhanced shadow with gradient effect
                     let shadow_color = Color::new(0.0, 0.0, 0.0, 0.4);
                     draw_ellipse(pos.x, pos.y + 70.0, 48.0, 16.0, 0.0, shadow_color);
-                    draw_ellipse(pos.x, pos.y + 70.0, 36.0, 12.0, 0.0, Color::new(0.0, 0.0, 0.0, 0.2));
+                    draw_ellipse(
+                        pos.x,
+                        pos.y + 70.0,
+                        36.0,
+                        12.0,
+                        0.0,
+                        Color::new(0.0, 0.0, 0.0, 0.2),
+                    );
 
                     let is_player = self.player_entity.map(|id| id == entity).unwrap_or(false);
                     let is_ally = self.ally_entities.contains(&entity);
@@ -1063,7 +1146,17 @@ impl State for GameplayState {
                     };
 
                     for offset in [3.0, 2.0, 1.0] {
-                        draw_circle(pos.x, pos.y, 32.0 + offset, Color::new(glow_color.r, glow_color.g, glow_color.b, glow_color.a * 0.3));
+                        draw_circle(
+                            pos.x,
+                            pos.y,
+                            32.0 + offset,
+                            Color::new(
+                                glow_color.r,
+                                glow_color.g,
+                                glow_color.b,
+                                glow_color.a * 0.3,
+                            ),
+                        );
                     }
 
                     // Draw ability aura for player
@@ -1073,14 +1166,18 @@ impl State for GameplayState {
                         let aura_color = match self.selected_character {
                             CharacterId::Berkay => Color::new(1.0, 0.5, 0.0, 0.4 * pulse as f32),
                             CharacterId::Luca => Color::new(0.3, 0.6, 1.0, 0.4 * pulse as f32),
-                            CharacterId::Gefferinho => Color::new(1.0, 0.2, 0.2, 0.4 * pulse as f32),
+                            CharacterId::Gefferinho => {
+                                Color::new(1.0, 0.2, 0.2, 0.4 * pulse as f32)
+                            }
                             CharacterId::Bas => Color::new(0.0, 1.0, 0.5, 0.4 * pulse as f32),
                             CharacterId::Hadi => Color::new(1.0, 0.8, 0.0, 0.4 * pulse as f32),
                             CharacterId::Nitin => Color::new(1.0, 0.3, 0.0, 0.4 * pulse as f32),
+                            CharacterId::PalaBaba => Color::new(0.8, 0.0, 0.2, 0.4 * pulse as f32),
                         };
                         // Draw multiple pulsing rings for aura effect
                         for i in 0..4 {
-                            let radius = 55.0 + i as f32 * 18.0 + (time * 2.0 + i as f64).sin() as f32 * 5.0;
+                            let radius =
+                                55.0 + i as f32 * 18.0 + (time * 2.0 + i as f64).sin() as f32 * 5.0;
                             draw_circle_lines(pos.x, pos.y, radius, 4.0, aura_color);
                         }
 
@@ -1089,18 +1186,20 @@ impl State for GameplayState {
                             let angle = time * 2.0 + i as f64 * std::f64::consts::PI * 0.25;
                             let sparkle_x = pos.x + (angle.cos() as f32) * 65.0;
                             let sparkle_y = pos.y + (angle.sin() as f32) * 65.0;
-                            let sparkle_pulse = ((time * 5.0 + i as f64 * 0.3).sin() * 0.5 + 0.5) as f32;
+                            let sparkle_pulse =
+                                ((time * 5.0 + i as f64 * 0.3).sin() * 0.5 + 0.5) as f32;
                             draw_circle(sparkle_x, sparkle_y, 3.0 * sparkle_pulse, aura_color);
                         }
                     }
 
-                    self.render_character(pos, fighter);
+                    self.render_character(pos, fighter, is_player);
 
                     // Render fire effect for burning enemies
                     if self.burning_enemies.contains_key(&entity) {
                         let time = get_time();
                         for i in 0..3 {
-                            let offset_y = -30.0 - i as f32 * 10.0 + (time * 5.0 + i as f64 * 0.5).sin() as f32 * 5.0;
+                            let offset_y = -30.0 - i as f32 * 10.0
+                                + (time * 5.0 + i as f64 * 0.5).sin() as f32 * 5.0;
                             let offset_x = ((time * 3.0 + i as f64 * 0.7).sin() * 10.0) as f32;
                             let size = 8.0 + i as f32 * 2.0;
                             let alpha = 0.7 - i as f32 * 0.2;
@@ -1143,10 +1242,22 @@ impl State for GameplayState {
                     let bar_y = pos.y - 85.0;
 
                     // Background shadow
-                    draw_rectangle(bar_x + 2.0, bar_y + 2.0, bar_width, bar_height, Color::new(0.0, 0.0, 0.0, 0.5));
+                    draw_rectangle(
+                        bar_x + 2.0,
+                        bar_y + 2.0,
+                        bar_width,
+                        bar_height,
+                        Color::new(0.0, 0.0, 0.0, 0.5),
+                    );
 
                     // Dark background
-                    draw_rectangle(bar_x, bar_y, bar_width, bar_height, Color::new(0.15, 0.15, 0.15, 0.9));
+                    draw_rectangle(
+                        bar_x,
+                        bar_y,
+                        bar_width,
+                        bar_height,
+                        Color::new(0.15, 0.15, 0.15, 0.9),
+                    );
 
                     // Health bar with gradient (green to yellow to red based on health)
                     let health_color = if health_pct > 0.6 {
@@ -1157,22 +1268,51 @@ impl State for GameplayState {
                         Color::new(1.0, 0.3, 0.2, 1.0)
                     };
 
-                    draw_rectangle(bar_x, bar_y, bar_width * health_pct, bar_height, health_color);
+                    draw_rectangle(
+                        bar_x,
+                        bar_y,
+                        bar_width * health_pct,
+                        bar_height,
+                        health_color,
+                    );
 
                     // Add glow effect on health bar
                     if health_pct > 0.0 {
-                        draw_rectangle(bar_x, bar_y, bar_width * health_pct, bar_height * 0.4,
-                            Color::new(health_color.r + 0.2, health_color.g + 0.2, health_color.b + 0.2, 0.6));
+                        draw_rectangle(
+                            bar_x,
+                            bar_y,
+                            bar_width * health_pct,
+                            bar_height * 0.4,
+                            Color::new(
+                                health_color.r + 0.2,
+                                health_color.g + 0.2,
+                                health_color.b + 0.2,
+                                0.6,
+                            ),
+                        );
                     }
 
                     // Border
-                    draw_rectangle_lines(bar_x, bar_y, bar_width, bar_height, 2.0, Color::new(0.8, 0.8, 0.8, 0.9));
+                    draw_rectangle_lines(
+                        bar_x,
+                        bar_y,
+                        bar_width,
+                        bar_height,
+                        2.0,
+                        Color::new(0.8, 0.8, 0.8, 0.9),
+                    );
 
                     // Health text
                     let health_text = format!("{:.0}/{:.0}", health.current, health.maximum);
                     let text_size = 14.0;
                     let text_dims = measure_text(&health_text, None, text_size as u16, 1.0);
-                    draw_text(&health_text, bar_x + bar_width * 0.5 - text_dims.width * 0.5, bar_y - 3.0, text_size, WHITE);
+                    draw_text(
+                        &health_text,
+                        bar_x + bar_width * 0.5 - text_dims.width * 0.5,
+                        bar_y - 3.0,
+                        text_size,
+                        WHITE,
+                    );
                 }
 
                 // Render bombs
@@ -1180,25 +1320,64 @@ impl State for GameplayState {
                     let time = get_time() as f32;
 
                     // Shadow
-                    draw_ellipse(pos.x, pos.y + 20.0, 18.0, 8.0, 0.0, Color::new(0.0, 0.0, 0.0, 0.4));
+                    draw_ellipse(
+                        pos.x,
+                        pos.y + 20.0,
+                        18.0,
+                        8.0,
+                        0.0,
+                        Color::new(0.0, 0.0, 0.0, 0.4),
+                    );
 
                     // Main bomb body - black sphere
                     draw_circle(pos.x, pos.y, 18.0, Color::new(0.1, 0.1, 0.1, 1.0));
-                    draw_circle(pos.x - 4.0, pos.y - 4.0, 15.0, Color::new(0.2, 0.2, 0.2, 1.0));
+                    draw_circle(
+                        pos.x - 4.0,
+                        pos.y - 4.0,
+                        15.0,
+                        Color::new(0.2, 0.2, 0.2, 1.0),
+                    );
 
                     // Highlight to make it look 3D
-                    draw_circle(pos.x - 6.0, pos.y - 6.0, 6.0, Color::new(0.4, 0.4, 0.4, 0.8));
+                    draw_circle(
+                        pos.x - 6.0,
+                        pos.y - 6.0,
+                        6.0,
+                        Color::new(0.4, 0.4, 0.4, 0.8),
+                    );
 
                     // Fuse on top
-                    draw_rectangle(pos.x - 2.0, pos.y - 18.0, 4.0, 10.0, Color::new(0.3, 0.2, 0.1, 1.0));
+                    draw_rectangle(
+                        pos.x - 2.0,
+                        pos.y - 18.0,
+                        4.0,
+                        10.0,
+                        Color::new(0.3, 0.2, 0.1, 1.0),
+                    );
 
                     // Animated sparking fuse tip
                     let spark_size = ((time * 10.0).sin().abs() * 3.0 + 2.0) as f32;
-                    draw_circle(pos.x, pos.y - 18.0, spark_size, Color::new(1.0, 0.3, 0.0, 1.0));
-                    draw_circle(pos.x, pos.y - 18.0, spark_size * 0.6, Color::new(1.0, 0.8, 0.0, 1.0));
+                    draw_circle(
+                        pos.x,
+                        pos.y - 18.0,
+                        spark_size,
+                        Color::new(1.0, 0.3, 0.0, 1.0),
+                    );
+                    draw_circle(
+                        pos.x,
+                        pos.y - 18.0,
+                        spark_size * 0.6,
+                        Color::new(1.0, 0.8, 0.0, 1.0),
+                    );
 
                     // Danger symbol
-                    draw_text("!", pos.x - 3.0, pos.y + 5.0, 20.0, Color::new(1.0, 0.0, 0.0, 0.9));
+                    draw_text(
+                        "!",
+                        pos.x - 3.0,
+                        pos.y + 5.0,
+                        20.0,
+                        Color::new(1.0, 0.0, 0.0, 0.9),
+                    );
                 }
             }
         }
@@ -1345,23 +1524,38 @@ impl State for GameplayState {
                                 // Apply health boost if applicable
                                 let health_boost = self.ability_state.get_health_boost();
                                 if health_boost > 0.0 {
-                                    if let Some(health) = self.world.get_component_mut::<Health>(player_entity) {
-                                        health.current = (health.current + health_boost).min(health.maximum);
+                                    if let Some(health) =
+                                        self.world.get_component_mut::<Health>(player_entity)
+                                    {
+                                        health.current =
+                                            (health.current + health_boost).min(health.maximum);
                                     }
                                 }
 
                                 // Trigger splash damage if applicable (Bas's ability)
-                                if let Some((damage, radius)) = self.ability_state.get_splash_damage() {
-                                    if let Some(player_transform) = self.world.get_component::<Transform>(player_entity) {
+                                if let Some((damage, radius)) =
+                                    self.ability_state.get_splash_damage()
+                                {
+                                    if let Some(player_transform) =
+                                        self.world.get_component::<Transform>(player_entity)
+                                    {
                                         let player_pos = player_transform.position;
 
                                         // Damage all nearby enemies
                                         for &enemy_entity in &self.enemy_entities.clone() {
-                                            if let Some(enemy_transform) = self.world.get_component::<Transform>(enemy_entity) {
-                                                let distance = player_pos.distance(enemy_transform.position);
+                                            if let Some(enemy_transform) =
+                                                self.world.get_component::<Transform>(enemy_entity)
+                                            {
+                                                let distance =
+                                                    player_pos.distance(enemy_transform.position);
                                                 if distance <= radius {
-                                                    if let Some(enemy_health) = self.world.get_component_mut::<Health>(enemy_entity) {
-                                                        enemy_health.current = (enemy_health.current - damage).max(0.0);
+                                                    if let Some(enemy_health) = self
+                                                        .world
+                                                        .get_component_mut::<Health>(enemy_entity)
+                                                    {
+                                                        enemy_health.current =
+                                                            (enemy_health.current - damage)
+                                                                .max(0.0);
                                                     }
                                                 }
                                             }
@@ -1370,7 +1564,8 @@ impl State for GameplayState {
                                 }
 
                                 // Trigger fire damage if applicable (Nitin's ability)
-                                if let Some((dps, duration)) = self.ability_state.get_fire_damage() {
+                                if let Some((dps, duration)) = self.ability_state.get_fire_damage()
+                                {
                                     // Set all enemies on fire
                                     for &enemy_entity in &self.enemy_entities {
                                         self.burning_enemies.insert(enemy_entity, (duration, dps));
@@ -1804,6 +1999,21 @@ impl GameplayState {
                 self.player_move_speed = 320.0;
                 self.set_shop_feedback("Movement speed increased!");
             }
+            UpgradeId::CooldownReduction => {
+                self.set_shop_feedback("Cooldown reduction purchased! (Not yet implemented)");
+            }
+            UpgradeId::AbilityDuration => {
+                self.set_shop_feedback("Ability duration purchased! (Not yet implemented)");
+            }
+            UpgradeId::LifeSteal => {
+                self.set_shop_feedback("Life steal purchased! (Not yet implemented)");
+            }
+            UpgradeId::DamageReduction => {
+                self.set_shop_feedback("Damage reduction purchased! (Not yet implemented)");
+            }
+            UpgradeId::CriticalChance => {
+                self.set_shop_feedback("Critical chance purchased! (Not yet implemented)");
+            }
         }
     }
 
@@ -2079,9 +2289,15 @@ impl GameplayState {
         draw_rectangle_lines(50.0, ability_y, 200.0, 40.0, 2.0, WHITE);
 
         let ability_text = if self.ability_state.active {
-            format!("{} [{:.1}s]", character.ability_name, self.ability_state.active_time)
+            format!(
+                "{} [{:.1}s]",
+                character.ability_name, self.ability_state.active_time
+            )
         } else if self.ability_state.cooldown_time > 0.0 {
-            format!("{} [{:.1}s]", character.ability_name, self.ability_state.cooldown_time)
+            format!(
+                "{} [{:.1}s]",
+                character.ability_name, self.ability_state.cooldown_time
+            )
         } else {
             format!("{} [E]", character.ability_name)
         };
@@ -2139,6 +2355,8 @@ impl GameplayState {
             CharacterType::Hadi => "Hadi".to_string(),
             CharacterType::Luca => "Luca".to_string(),
             CharacterType::Nitin => "Nitin".to_string(),
+            CharacterType::Gefferinho => "Gefferinho".to_string(),
+            CharacterType::YigitBaba => "Yigit Baba".to_string(),
             CharacterType::Wolters => "Wolters".to_string(),
             CharacterType::PrefectA => "Prefect A".to_string(),
             CharacterType::PrefectB => "Prefect B".to_string(),
@@ -2163,18 +2381,36 @@ impl GameplayState {
         let y = pos.y - 115.0;
 
         // Shadow
-        draw_rectangle(x + 2.0, y + 2.0, width, height, Color::new(0.0, 0.0, 0.0, 0.6));
+        draw_rectangle(
+            x + 2.0,
+            y + 2.0,
+            width,
+            height,
+            Color::new(0.0, 0.0, 0.0, 0.6),
+        );
 
         // Background with gradient effect
         draw_rectangle(x, y, width, height, Color::new(0.0, 0.0, 0.0, 0.85));
 
         // Top highlight
-        draw_rectangle(x, y, width, height * 0.3, Color::new(color.r * 0.5, color.g * 0.5, color.b * 0.5, 0.6));
+        draw_rectangle(
+            x,
+            y,
+            width,
+            height * 0.3,
+            Color::new(color.r * 0.5, color.g * 0.5, color.b * 0.5, 0.6),
+        );
 
         // Colored border with glow
         draw_rectangle_lines(x, y, width, height, 2.5, color);
-        draw_rectangle_lines(x - 1.0, y - 1.0, width + 2.0, height + 2.0, 1.0,
-            Color::new(color.r, color.g, color.b, 0.4));
+        draw_rectangle_lines(
+            x - 1.0,
+            y - 1.0,
+            width + 2.0,
+            height + 2.0,
+            1.0,
+            Color::new(color.r, color.g, color.b, 0.4),
+        );
 
         // Text with subtle shadow
         draw_text(
@@ -2197,275 +2433,754 @@ impl GameplayState {
 
     fn render_classroom(&self) {
         let time = get_time() as f32;
+        let sw = screen_width();
+        let sh = screen_height();
 
-        // Enhanced floor with tiles
-        let floor_y = 600.0;
-        for i in 0..20 {
-            for j in 0..4 {
+        // Enhanced floor with tiles - resolution friendly
+        let floor_y = sh * 0.55;
+        let tile_cols = (sw / 80.0).ceil() as i32;
+        let tile_rows = ((sh - floor_y) / 40.0).ceil() as i32;
+
+        for i in 0..tile_cols {
+            for j in 0..tile_rows {
                 let x = i as f32 * 80.0;
                 let y = floor_y + j as f32 * 40.0;
                 let tile_shade = if (i + j) % 2 == 0 { 0.45 } else { 0.42 };
-                draw_rectangle(x, y, 80.0, 40.0, Color::new(tile_shade, tile_shade - 0.05, tile_shade - 0.1, 1.0));
+                draw_rectangle(
+                    x,
+                    y,
+                    80.0,
+                    40.0,
+                    Color::new(tile_shade, tile_shade - 0.05, tile_shade - 0.1, 1.0),
+                );
                 draw_rectangle_lines(x, y, 80.0, 40.0, 1.0, Color::new(0.3, 0.25, 0.2, 0.3));
             }
         }
 
-        // Ceiling beam with depth
-        draw_rectangle(0.0, 95.0, screen_width(), 30.0, Color::new(0.25, 0.2, 0.15, 1.0));
-        draw_rectangle(0.0, 100.0, screen_width(), 20.0, Color::new(0.35, 0.28, 0.22, 1.0));
-        draw_rectangle(0.0, 118.0, screen_width(), 2.0, Color::new(0.15, 0.12, 0.1, 1.0));
+        // Ceiling beam with depth - resolution friendly
+        let ceiling_y = sh * 0.09;
+        draw_rectangle(
+            0.0,
+            ceiling_y,
+            sw,
+            sh * 0.03,
+            Color::new(0.25, 0.2, 0.15, 1.0),
+        );
+        draw_rectangle(
+            0.0,
+            ceiling_y + sh * 0.005,
+            sw,
+            sh * 0.02,
+            Color::new(0.35, 0.28, 0.22, 1.0),
+        );
+        draw_rectangle(
+            0.0,
+            ceiling_y + sh * 0.025,
+            sw,
+            sh * 0.002,
+            Color::new(0.15, 0.12, 0.1, 1.0),
+        );
 
-        // Enhanced blackboard with frame
-        draw_rectangle(45.0, 115.0, 310.0, 210.0, Color::new(0.15, 0.12, 0.1, 1.0)); // Shadow
-        draw_rectangle(40.0, 110.0, 310.0, 210.0, Color::new(0.5, 0.42, 0.35, 1.0)); // Frame
-        draw_rectangle(50.0, 120.0, 290.0, 190.0, Color::new(0.08, 0.25, 0.08, 1.0)); // Board
-
-        // Frame details
-        draw_rectangle(45.0, 115.0, 300.0, 5.0, Color::new(0.6, 0.52, 0.45, 1.0));
-        draw_rectangle(45.0, 115.0, 5.0, 200.0, Color::new(0.6, 0.52, 0.45, 1.0));
-
-        // Chalk text with glow
-        let text = "BAS VEGEN";
-        draw_text(text, 82.0, 202.0, 42.0, Color::new(0.7, 0.7, 0.7, 0.3));
-        draw_text(text, 80.0, 200.0, 42.0, WHITE);
-        draw_text("A + B = C", 82.0, 252.0, 32.0, Color::new(0.7, 0.7, 0.7, 0.3));
-        draw_text("A + B = C", 80.0, 250.0, 32.0, WHITE);
-
-        // Chalk ledge
-        draw_rectangle(50.0, 308.0, 290.0, 8.0, Color::new(0.4, 0.34, 0.28, 1.0));
-
-        // Enhanced desks with shadows and depth
-        for i in 0..4 {
-            let desk_x = 450.0 + (i as f32 * 150.0);
-
-            // Desk shadow
-            draw_rectangle(desk_x + 3.0, 453.0, 120.0, 80.0, Color::new(0.0, 0.0, 0.0, 0.3));
-
-            // Desk top with highlight
-            draw_rectangle(desk_x, 450.0, 120.0, 80.0, Color::new(0.55, 0.45, 0.35, 1.0));
-            draw_rectangle(desk_x, 450.0, 120.0, 15.0, Color::new(0.65, 0.55, 0.45, 1.0)); // Highlight
-            draw_rectangle_lines(desk_x, 450.0, 120.0, 80.0, 2.0, Color::new(0.4, 0.32, 0.25, 1.0));
-
-            // Chair with backrest
-            draw_rectangle(desk_x + 40.0, 383.0, 40.0, 70.0, Color::new(0.25, 0.25, 0.3, 1.0));
-            draw_rectangle(desk_x + 42.0, 380.0, 36.0, 68.0, Color::new(0.35, 0.35, 0.4, 1.0));
-            draw_rectangle(desk_x + 35.0, 360.0, 50.0, 25.0, Color::new(0.35, 0.35, 0.4, 1.0));
+        // Ceiling lights
+        for i in 0..((sw / 300.0) as i32) {
+            let light_x = 150.0 + i as f32 * 300.0;
+            draw_rectangle(
+                light_x - 40.0,
+                ceiling_y + sh * 0.027,
+                80.0,
+                15.0,
+                Color::new(0.9, 0.9, 0.8, 0.8),
+            );
+            // Light glow
+            draw_circle(
+                light_x,
+                ceiling_y + sh * 0.035,
+                60.0,
+                Color::new(1.0, 1.0, 0.9, 0.15),
+            );
         }
 
-        // Enhanced teacher's desk
-        let teacher_x = screen_width() - 160.0;
-        draw_rectangle(teacher_x + 5.0, 203.0, 110.0, 155.0, Color::new(0.0, 0.0, 0.0, 0.3));
-        draw_rectangle(teacher_x, 198.0, 110.0, 155.0, Color::new(0.65, 0.55, 0.45, 1.0));
-        draw_rectangle(teacher_x, 198.0, 110.0, 20.0, Color::new(0.75, 0.65, 0.55, 1.0));
-        draw_rectangle_lines(teacher_x, 198.0, 110.0, 155.0, 3.0, Color::new(0.5, 0.4, 0.32, 1.0));
+        // Enhanced blackboard with frame - resolution friendly
+        let board_x = sw * 0.03;
+        let board_y = sh * 0.15;
+        let board_w = sw * 0.2;
+        let board_h = sh * 0.28;
+
+        draw_rectangle(
+            board_x + 5.0,
+            board_y + 5.0,
+            board_w,
+            board_h,
+            Color::new(0.15, 0.12, 0.1, 1.0),
+        ); // Shadow
+        draw_rectangle(
+            board_x,
+            board_y,
+            board_w,
+            board_h,
+            Color::new(0.5, 0.42, 0.35, 1.0),
+        ); // Frame
+        draw_rectangle(
+            board_x + 10.0,
+            board_y + 10.0,
+            board_w - 20.0,
+            board_h - 20.0,
+            Color::new(0.08, 0.25, 0.08, 1.0),
+        ); // Board
+
+        // Frame details
+        draw_rectangle(
+            board_x + 5.0,
+            board_y + 5.0,
+            board_w - 10.0,
+            5.0,
+            Color::new(0.6, 0.52, 0.45, 1.0),
+        );
+        draw_rectangle(
+            board_x + 5.0,
+            board_y + 5.0,
+            5.0,
+            board_h - 10.0,
+            Color::new(0.6, 0.52, 0.45, 1.0),
+        );
+
+        // Chalk text with glow - dynamic font size
+        let text = "BAS VEGEN";
+        let font_size = (board_w * 0.15).max(20.0);
+        let text_x = board_x + board_w * 0.15;
+        let text_y = board_y + board_h * 0.45;
+        draw_text(
+            text,
+            text_x + 2.0,
+            text_y + 2.0,
+            font_size,
+            Color::new(0.7, 0.7, 0.7, 0.3),
+        );
+        draw_text(text, text_x, text_y, font_size, WHITE);
+
+        let small_font = (board_w * 0.12).max(16.0);
+        let text2_y = board_y + board_h * 0.7;
+        draw_text(
+            "A + B = C",
+            text_x + 2.0,
+            text2_y + 2.0,
+            small_font,
+            Color::new(0.7, 0.7, 0.7, 0.3),
+        );
+        draw_text("A + B = C", text_x, text2_y, small_font, WHITE);
+
+        // Chalk ledge
+        draw_rectangle(
+            board_x + 10.0,
+            board_y + board_h - 2.0,
+            board_w - 20.0,
+            8.0,
+            Color::new(0.4, 0.34, 0.28, 1.0),
+        );
+
+        // Enhanced desks with shadows and depth - resolution friendly
+        let desk_count = ((sw - board_w * 1.5) / (sw * 0.12)).floor().min(6.0).max(3.0) as i32;
+        let desk_start_x = board_x + board_w + sw * 0.05;
+        let desk_spacing = (sw - desk_start_x - sw * 0.2) / desk_count as f32;
+        let desk_w = (desk_spacing * 0.75).min(sw * 0.1);
+        let desk_h = sh * 0.11;
+        let desk_y = floor_y - desk_h - sh * 0.05;
+
+        for i in 0..desk_count {
+            let desk_x = desk_start_x + (i as f32 * desk_spacing);
+
+            // Desk shadow
+            draw_rectangle(
+                desk_x + 3.0,
+                desk_y + 3.0,
+                desk_w,
+                desk_h,
+                Color::new(0.0, 0.0, 0.0, 0.3),
+            );
+
+            // Desk top with highlight
+            draw_rectangle(
+                desk_x,
+                desk_y,
+                desk_w,
+                desk_h,
+                Color::new(0.55, 0.45, 0.35, 1.0),
+            );
+            draw_rectangle(
+                desk_x,
+                desk_y,
+                desk_w,
+                desk_h * 0.2,
+                Color::new(0.65, 0.55, 0.45, 1.0),
+            ); // Highlight
+            draw_rectangle_lines(
+                desk_x,
+                desk_y,
+                desk_w,
+                desk_h,
+                2.0,
+                Color::new(0.4, 0.32, 0.25, 1.0),
+            );
+
+            // Chair with backrest
+            let chair_w = desk_w * 0.35;
+            let chair_h = desk_h * 0.85;
+            let chair_x = desk_x + (desk_w - chair_w) * 0.5;
+            let chair_y = desk_y - chair_h - sh * 0.01;
+
+            draw_rectangle(
+                chair_x,
+                chair_y + 3.0,
+                chair_w,
+                chair_h,
+                Color::new(0.25, 0.25, 0.3, 1.0),
+            );
+            draw_rectangle(
+                chair_x + 2.0,
+                chair_y,
+                chair_w - 4.0,
+                chair_h - 2.0,
+                Color::new(0.35, 0.35, 0.4, 1.0),
+            );
+            // Backrest
+            draw_rectangle(
+                chair_x - chair_w * 0.12,
+                chair_y - desk_h * 0.25,
+                chair_w * 1.25,
+                desk_h * 0.3,
+                Color::new(0.35, 0.35, 0.4, 1.0),
+            );
+        }
+
+        // Enhanced teacher's desk - resolution friendly
+        let teacher_desk_w = sw * 0.08;
+        let teacher_desk_h = sh * 0.21;
+        let teacher_x = sw - teacher_desk_w - sw * 0.02;
+        let teacher_y = sh * 0.26;
+
+        draw_rectangle(
+            teacher_x + 5.0,
+            teacher_y + 5.0,
+            teacher_desk_w,
+            teacher_desk_h,
+            Color::new(0.0, 0.0, 0.0, 0.3),
+        );
+        draw_rectangle(
+            teacher_x,
+            teacher_y,
+            teacher_desk_w,
+            teacher_desk_h,
+            Color::new(0.65, 0.55, 0.45, 1.0),
+        );
+        draw_rectangle(
+            teacher_x,
+            teacher_y,
+            teacher_desk_w,
+            teacher_desk_h * 0.13,
+            Color::new(0.75, 0.65, 0.55, 1.0),
+        );
+        draw_rectangle_lines(
+            teacher_x,
+            teacher_y,
+            teacher_desk_w,
+            teacher_desk_h,
+            3.0,
+            Color::new(0.5, 0.4, 0.32, 1.0),
+        );
 
         // Computer/papers on desk
-        draw_rectangle(teacher_x + 10.0, 208.0, 45.0, 35.0, Color::new(0.85, 0.85, 0.85, 1.0));
-        draw_rectangle(teacher_x + 12.0, 210.0, 41.0, 31.0, Color::new(0.2, 0.3, 0.4, 1.0));
-        draw_rectangle(teacher_x + 60.0, 215.0, 35.0, 25.0, Color::new(0.95, 0.95, 0.85, 1.0));
+        let item_size = teacher_desk_w * 0.4;
+        draw_rectangle(
+            teacher_x + teacher_desk_w * 0.1,
+            teacher_y + teacher_desk_h * 0.08,
+            item_size,
+            item_size * 0.75,
+            Color::new(0.85, 0.85, 0.85, 1.0),
+        );
+        draw_rectangle(
+            teacher_x + teacher_desk_w * 0.12,
+            teacher_y + teacher_desk_h * 0.1,
+            item_size * 0.9,
+            item_size * 0.68,
+            Color::new(0.2, 0.3, 0.4, 1.0),
+        );
+        draw_rectangle(
+            teacher_x + teacher_desk_w * 0.55,
+            teacher_y + teacher_desk_h * 0.13,
+            item_size * 0.8,
+            item_size * 0.55,
+            Color::new(0.95, 0.95, 0.85, 1.0),
+        );
 
-        // Enhanced plant
-        draw_rectangle(screen_width() - 255.0, 403.0, 60.0, 105.0, Color::new(0.0, 0.0, 0.0, 0.3));
-        draw_rectangle(screen_width() - 260.0, 400.0, 60.0, 105.0, Color::new(0.45, 0.3, 0.2, 1.0));
-        draw_circle(screen_width() - 230.0, 380.0, 50.0, Color::new(0.25, 0.55, 0.25, 1.0));
-        draw_circle(screen_width() - 240.0, 390.0, 35.0, Color::new(0.3, 0.6, 0.3, 1.0));
-        draw_circle(screen_width() - 220.0, 395.0, 30.0, Color::new(0.35, 0.65, 0.35, 1.0));
+        // Enhanced plant - resolution friendly
+        let plant_w = sw * 0.045;
+        let plant_h = sh * 0.14;
+        let plant_x = sw - plant_w * 3.2;
+        let plant_y = floor_y - plant_h;
 
-        // Enhanced windows with light rays
-        for i in 0..7 {
-            let window_x = 380.0 + (i as f32 * 130.0);
-            if window_x < screen_width() - 220.0 {
+        draw_rectangle(
+            plant_x + 5.0,
+            plant_y + 3.0,
+            plant_w,
+            plant_h,
+            Color::new(0.0, 0.0, 0.0, 0.3),
+        );
+        draw_rectangle(
+            plant_x,
+            plant_y,
+            plant_w,
+            plant_h,
+            Color::new(0.45, 0.3, 0.2, 1.0),
+        );
+
+        let plant_center_x = plant_x + plant_w * 0.5;
+        let plant_top_y = plant_y - plant_h * 0.15;
+        let leaf_radius = plant_w * 0.8;
+
+        draw_circle(
+            plant_center_x,
+            plant_top_y,
+            leaf_radius,
+            Color::new(0.25, 0.55, 0.25, 1.0),
+        );
+        draw_circle(
+            plant_center_x - leaf_radius * 0.3,
+            plant_top_y + leaf_radius * 0.25,
+            leaf_radius * 0.7,
+            Color::new(0.3, 0.6, 0.3, 1.0),
+        );
+        draw_circle(
+            plant_center_x + leaf_radius * 0.3,
+            plant_top_y + leaf_radius * 0.35,
+            leaf_radius * 0.6,
+            Color::new(0.35, 0.65, 0.35, 1.0),
+        );
+
+        // Enhanced windows with light rays - resolution friendly
+        let window_w = sw * 0.065;
+        let window_h = sh * 0.17;
+        let window_y = sh * 0.2;
+        let window_spacing = sw * 0.1;
+        let window_start = board_x + board_w + sw * 0.03;
+        let window_count = ((sw - window_start - plant_x) / window_spacing)
+            .floor()
+            .min(8.0) as i32;
+
+        for i in 0..window_count {
+            let window_x = window_start + (i as f32 * window_spacing);
+            if window_x + window_w < plant_x - sw * 0.02 {
                 // Window shadow
-                draw_rectangle(window_x + 3.0, 153.0, 85.0, 125.0, Color::new(0.0, 0.0, 0.0, 0.2));
+                draw_rectangle(
+                    window_x + 3.0,
+                    window_y + 3.0,
+                    window_w,
+                    window_h,
+                    Color::new(0.0, 0.0, 0.0, 0.2),
+                );
 
                 // Window frame
-                draw_rectangle(window_x - 5.0, 145.0, 95.0, 135.0, Color::new(0.45, 0.38, 0.3, 1.0));
+                draw_rectangle(
+                    window_x - 5.0,
+                    window_y - 5.0,
+                    window_w + 10.0,
+                    window_h + 10.0,
+                    Color::new(0.45, 0.38, 0.3, 1.0),
+                );
 
                 // Glass with subtle animation
                 let light_variation = ((time + i as f32 * 0.5).sin() * 0.05 + 0.75) as f32;
-                draw_rectangle(window_x, 150.0, 85.0, 125.0, Color::new(0.65 * light_variation, 0.75 * light_variation, 0.95, 0.4));
+                draw_rectangle(
+                    window_x,
+                    window_y,
+                    window_w,
+                    window_h,
+                    Color::new(0.65 * light_variation, 0.75 * light_variation, 0.95, 0.4),
+                );
 
                 // Light rays through window
+                let ray_start_y = window_y + window_h;
                 for ray in 0..3 {
-                    let ray_x = window_x + 15.0 + ray as f32 * 25.0;
+                    let ray_x = window_x + window_w * 0.2 + ray as f32 * window_w * 0.3;
                     let ray_alpha = 0.1 + ((time * 0.5 + ray as f32 * 0.3).sin() * 0.05) as f32;
                     for y_step in 0..10 {
-                        let y_pos = 275.0 + y_step as f32 * 35.0;
-                        draw_line(ray_x, 275.0, ray_x + 15.0, y_pos, 25.0, Color::new(1.0, 1.0, 0.9, ray_alpha));
+                        let y_pos = ray_start_y + y_step as f32 * sh * 0.05;
+                        draw_line(
+                            ray_x,
+                            ray_start_y,
+                            ray_x + window_w * 0.15,
+                            y_pos,
+                            window_w * 0.3,
+                            Color::new(1.0, 1.0, 0.9, ray_alpha),
+                        );
                     }
                 }
 
                 // Window dividers
-                draw_rectangle_lines(window_x, 150.0, 85.0, 125.0, 4.0, Color::new(0.4, 0.33, 0.26, 1.0));
-                draw_line(window_x + 42.5, 150.0, window_x + 42.5, 275.0, 3.0, Color::new(0.4, 0.33, 0.26, 1.0));
-                draw_line(window_x, 212.5, window_x + 85.0, 212.5, 3.0, Color::new(0.4, 0.33, 0.26, 1.0));
+                draw_rectangle_lines(
+                    window_x,
+                    window_y,
+                    window_w,
+                    window_h,
+                    4.0,
+                    Color::new(0.4, 0.33, 0.26, 1.0),
+                );
+                // Vertical divider
+                draw_line(
+                    window_x + window_w * 0.5,
+                    window_y,
+                    window_x + window_w * 0.5,
+                    window_y + window_h,
+                    3.0,
+                    Color::new(0.4, 0.33, 0.26, 1.0),
+                );
+                // Horizontal divider
+                draw_line(
+                    window_x,
+                    window_y + window_h * 0.5,
+                    window_x + window_w,
+                    window_y + window_h * 0.5,
+                    3.0,
+                    Color::new(0.4, 0.33, 0.26, 1.0),
+                );
             }
         }
     }
 
     fn render_hallway(&self) {
         let time = get_time() as f32;
+        let sw = screen_width();
+        let sh = screen_height();
 
-        // Tiled floor
-        let floor_y = 600.0;
-        for i in 0..25 {
-            for j in 0..3 {
-                let x = i as f32 * 70.0;
-                let y = floor_y + j as f32 * 50.0;
+        // Tiled floor - resolution friendly
+        let floor_y = sh * 0.78;
+        let tile_w = sw * 0.045;
+        let tile_h = sh * 0.065;
+        let tile_cols = (sw / tile_w).ceil() as i32;
+        let tile_rows = ((sh - floor_y) / tile_h).ceil() as i32;
+
+        for i in 0..tile_cols {
+            for j in 0..tile_rows {
+                let x = i as f32 * tile_w;
+                let y = floor_y + j as f32 * tile_h;
                 let shade = if (i + j) % 2 == 0 { 0.65 } else { 0.6 };
-                draw_rectangle(x, y, 70.0, 50.0, Color::new(shade, shade - 0.08, shade - 0.15, 1.0));
+                draw_rectangle(
+                    x,
+                    y,
+                    tile_w,
+                    tile_h,
+                    Color::new(shade, shade - 0.08, shade - 0.15, 1.0),
+                );
             }
         }
 
-        // Enhanced lockers with depth
-        for i in 0..20 {
-            let locker_x = i as f32 * 80.0;
-            draw_rectangle(locker_x + 3.0, 153.0, 70.0, 350.0, Color::new(0.0, 0.0, 0.0, 0.3));
-            draw_rectangle(locker_x, 150.0, 70.0, 350.0, Color::new(0.45, 0.45, 0.65, 1.0));
-            draw_rectangle(locker_x, 150.0, 70.0, 30.0, Color::new(0.55, 0.55, 0.75, 1.0));
-            draw_rectangle_lines(locker_x, 150.0, 70.0, 350.0, 3.0, Color::new(0.35, 0.35, 0.55, 1.0));
-            draw_circle(locker_x + 35.0, 325.0, 7.0, Color::new(0.2, 0.2, 0.2, 1.0));
-            draw_circle(locker_x + 35.0, 325.0, 5.0, Color::new(0.8, 0.8, 0.8, 1.0));
-            draw_line(locker_x, 320.0, locker_x + 70.0, 320.0, 2.0, Color::new(0.35, 0.35, 0.55, 1.0));
+        // Enhanced lockers with depth - resolution friendly
+        let locker_w = sw * 0.055;
+        let locker_h = sh * 0.46;
+        let locker_y = sh * 0.2;
+        let locker_count = (sw / locker_w).ceil().min(25.0) as i32;
+
+        for i in 0..locker_count {
+            let locker_x = i as f32 * locker_w;
+
+            // Shadow
+            draw_rectangle(
+                locker_x + 3.0,
+                locker_y + 3.0,
+                locker_w - 10.0,
+                locker_h,
+                Color::new(0.0, 0.0, 0.0, 0.3),
+            );
+            // Main locker body
+            draw_rectangle(
+                locker_x,
+                locker_y,
+                locker_w - 10.0,
+                locker_h,
+                Color::new(0.45, 0.45, 0.65, 1.0),
+            );
+            // Top highlight
+            draw_rectangle(
+                locker_x,
+                locker_y,
+                locker_w - 10.0,
+                locker_h * 0.08,
+                Color::new(0.55, 0.55, 0.75, 1.0),
+            );
+            // Outline
+            draw_rectangle_lines(
+                locker_x,
+                locker_y,
+                locker_w - 10.0,
+                locker_h,
+                3.0,
+                Color::new(0.35, 0.35, 0.55, 1.0),
+            );
+
+            // Lock
+            let lock_x = locker_x + (locker_w - 10.0) * 0.5;
+            let lock_y = locker_y + locker_h * 0.5;
+            draw_circle(lock_x, lock_y, 7.0, Color::new(0.2, 0.2, 0.2, 1.0));
+            draw_circle(lock_x, lock_y, 5.0, Color::new(0.8, 0.8, 0.8, 1.0));
+
+            // Divider line
+            draw_line(
+                locker_x,
+                lock_y - 5.0,
+                locker_x + locker_w - 10.0,
+                lock_y - 5.0,
+                2.0,
+                Color::new(0.35, 0.35, 0.55, 1.0),
+            );
         }
 
-        // Ceiling with lights
-        draw_rectangle(0.0, 0.0, screen_width(), 150.0, Color::new(0.92, 0.92, 0.87, 1.0));
-        for i in 0..10 {
-            let light_x = i as f32 * 200.0 + 100.0;
+        // Ceiling with lights - resolution friendly
+        let ceiling_h = sh * 0.2;
+        draw_rectangle(0.0, 0.0, sw, ceiling_h, Color::new(0.92, 0.92, 0.87, 1.0));
+
+        let light_spacing = sw * 0.12;
+        let light_count = (sw / light_spacing).floor() as i32;
+        let light_radius = (sw * 0.022).min(35.0);
+
+        for i in 0..light_count {
+            let light_x = i as f32 * light_spacing + light_spacing * 0.5;
+            let light_y = ceiling_h * 0.5;
             let glow = ((time * 2.0 + i as f32).sin() * 0.1 + 0.9) as f32;
-            draw_circle(light_x, 75.0, 35.0, Color::new(1.0 * glow, 0.95 * glow, 0.8 * glow, 0.6));
-            draw_circle(light_x, 75.0, 28.0, Color::new(1.0, 0.98, 0.85, 1.0));
+
+            // Glow effect
+            draw_circle(
+                light_x,
+                light_y,
+                light_radius * 1.2,
+                Color::new(1.0 * glow, 0.95 * glow, 0.8 * glow, 0.6),
+            );
+            // Light fixture
+            draw_circle(
+                light_x,
+                light_y,
+                light_radius * 0.8,
+                Color::new(1.0, 0.98, 0.85, 1.0),
+            );
         }
     }
 
     fn render_cafeteria(&self) {
-        let floor_y = 600.0;
+        let sw = screen_width();
+        let sh = screen_height();
+        let floor_y = sh * 0.78;
+
+        // Floor
         draw_rectangle(
             0.0,
             floor_y,
-            screen_width(),
-            screen_height() - floor_y,
+            sw,
+            sh - floor_y,
             Color::new(0.8, 0.8, 0.7, 1.0),
         );
 
-        for i in 0..6 {
-            let table_x = 150.0 + i as f32 * 250.0;
-            draw_rectangle(table_x, 400.0, 200.0, 100.0, Color::new(0.6, 0.5, 0.4, 1.0));
+        // Tables - resolution friendly
+        let table_w = sw * 0.12;
+        let table_h = sh * 0.13;
+        let table_y = sh * 0.52;
+        let table_spacing = sw * 0.15;
+        let table_count = ((sw - sw * 0.1) / table_spacing).floor().min(8.0).max(3.0) as i32;
+
+        for i in 0..table_count {
+            let table_x = sw * 0.05 + i as f32 * table_spacing;
+
+            // Table top
             draw_rectangle(
-                table_x + 10.0,
-                500.0,
-                20.0,
-                80.0,
+                table_x,
+                table_y,
+                table_w,
+                table_h,
+                Color::new(0.6, 0.5, 0.4, 1.0),
+            );
+
+            // Table legs
+            let leg_w = table_w * 0.1;
+            let leg_h = sh * 0.1;
+            draw_rectangle(
+                table_x + table_w * 0.1,
+                table_y + table_h,
+                leg_w,
+                leg_h,
                 Color::new(0.4, 0.3, 0.2, 1.0),
             );
             draw_rectangle(
-                table_x + 170.0,
-                500.0,
-                20.0,
-                80.0,
+                table_x + table_w * 0.8,
+                table_y + table_h,
+                leg_w,
+                leg_h,
                 Color::new(0.4, 0.3, 0.2, 1.0),
             );
+
+            // Benches
+            let bench_w = table_w * 0.3;
+            let bench_h = table_h * 0.2;
+            let bench_y = table_y - table_h * 0.25;
+
             draw_rectangle(
-                table_x + 20.0,
-                480.0,
-                60.0,
-                20.0,
+                table_x + table_w * 0.1,
+                bench_y,
+                bench_w,
+                bench_h,
                 Color::new(0.5, 0.4, 0.3, 1.0),
             );
             draw_rectangle(
-                table_x + 120.0,
-                480.0,
-                60.0,
-                20.0,
+                table_x + table_w * 0.6,
+                bench_y,
+                bench_w,
+                bench_h,
                 Color::new(0.5, 0.4, 0.3, 1.0),
             );
         }
 
+        // Counter/service area
+        let counter_h = sh * 0.2;
         draw_rectangle(
             0.0,
-            100.0,
-            screen_width(),
-            150.0,
+            sh * 0.13,
+            sw,
+            counter_h,
             Color::new(0.7, 0.7, 0.7, 1.0),
         );
-        draw_rectangle(50.0, 120.0, 200.0, 100.0, Color::new(0.9, 0.9, 0.9, 1.0));
-        draw_text("MENU", 100.0, 180.0, 30.0, Color::new(0.2, 0.2, 0.2, 1.0));
+
+        // Menu board
+        let menu_w = sw * 0.13;
+        let menu_h = sh * 0.13;
+        let menu_x = sw * 0.04;
+        let menu_y = sh * 0.16;
+
+        draw_rectangle(menu_x, menu_y, menu_w, menu_h, Color::new(0.9, 0.9, 0.9, 1.0));
+
+        let menu_font = (menu_w * 0.15).max(20.0);
+        draw_text(
+            "MENU",
+            menu_x + menu_w * 0.2,
+            menu_y + menu_h * 0.6,
+            menu_font,
+            Color::new(0.2, 0.2, 0.2, 1.0),
+        );
     }
 
     fn render_gym(&self) {
-        let floor_y = 600.0;
+        let sw = screen_width();
+        let sh = screen_height();
+        let floor_y = sh * 0.78;
+
+        // Wooden floor
         draw_rectangle(
             0.0,
             floor_y,
-            screen_width(),
-            screen_height() - floor_y,
+            sw,
+            sh - floor_y,
             Color::new(0.9, 0.7, 0.5, 1.0),
         );
 
-        for i in 0..20 {
-            let line_x = i as f32 * 100.0;
+        // Floor lines - resolution friendly
+        let line_spacing = sw * 0.055;
+        let line_count = (sw / line_spacing).ceil() as i32;
+
+        for i in 0..line_count {
+            let line_x = i as f32 * line_spacing;
             draw_line(
                 line_x,
                 floor_y,
                 line_x,
-                screen_height(),
+                sh,
                 3.0,
                 Color::new(0.8, 0.6, 0.4, 1.0),
             );
         }
 
-        draw_circle(
-            screen_width() * 0.5,
-            450.0,
-            100.0,
-            Color::new(1.0, 1.0, 1.0, 0.3),
-        );
-        draw_circle_lines(screen_width() * 0.5, 450.0, 100.0, 5.0, WHITE);
+        // Center court circle - resolution friendly
+        let circle_y = sh * 0.59;
+        let circle_radius = (sw * 0.06).min(sh * 0.13);
 
-        draw_rectangle(100.0, 200.0, 10.0, 200.0, Color::new(0.8, 0.8, 0.8, 1.0));
-        draw_circle(100.0, 180.0, 50.0, Color::new(1.0, 0.6, 0.2, 1.0));
-        draw_rectangle(95.0, 180.0, 10.0, 300.0, Color::new(1.0, 1.0, 1.0, 1.0));
+        draw_circle(sw * 0.5, circle_y, circle_radius, Color::new(1.0, 1.0, 1.0, 0.3));
+        draw_circle_lines(sw * 0.5, circle_y, circle_radius, 5.0, WHITE);
 
+        // Basketball hoops - resolution friendly
+        let hoop_y = sh * 0.26;
+        let pole_w = sw * 0.008;
+        let pole_h = sh * 0.26;
+        let backboard_w = sw * 0.008;
+        let backboard_h = sh * 0.39;
+        let rim_radius = (sw * 0.032).min(sh * 0.065);
+
+        // Left hoop
+        let left_x = sw * 0.08;
+        draw_rectangle(left_x, hoop_y, pole_w, pole_h, Color::new(0.8, 0.8, 0.8, 1.0));
+        draw_circle(left_x, hoop_y - rim_radius * 0.4, rim_radius, Color::new(1.0, 0.6, 0.2, 1.0));
         draw_rectangle(
-            screen_width() - 110.0,
-            200.0,
-            10.0,
-            200.0,
-            Color::new(0.8, 0.8, 0.8, 1.0),
+            left_x - backboard_w * 0.5,
+            hoop_y - rim_radius * 0.4,
+            backboard_w,
+            backboard_h,
+            Color::new(1.0, 1.0, 1.0, 1.0),
         );
-        draw_circle(
-            screen_width() - 100.0,
-            180.0,
-            50.0,
-            Color::new(1.0, 0.6, 0.2, 1.0),
-        );
+
+        // Right hoop
+        let right_x = sw - sw * 0.08;
+        draw_rectangle(right_x, hoop_y, pole_w, pole_h, Color::new(0.8, 0.8, 0.8, 1.0));
+        draw_circle(right_x, hoop_y - rim_radius * 0.4, rim_radius, Color::new(1.0, 0.6, 0.2, 1.0));
     }
 
     fn render_library(&self) {
-        let floor_y = 600.0;
+        let sw = screen_width();
+        let sh = screen_height();
+        let floor_y = sh * 0.78;
+
+        // Floor
         draw_rectangle(
             0.0,
             floor_y,
-            screen_width(),
-            screen_height() - floor_y,
+            sw,
+            sh - floor_y,
             Color::new(0.5, 0.4, 0.3, 1.0),
         );
 
-        for i in 0..8 {
-            let shelf_x = 100.0 + i as f32 * 200.0;
-            draw_rectangle(shelf_x, 150.0, 150.0, 400.0, Color::new(0.4, 0.3, 0.2, 1.0));
-            for j in 0..5 {
-                let shelf_y = 170.0 + j as f32 * 75.0;
+        // Bookshelves - resolution friendly
+        let shelf_w = sw * 0.095;
+        let shelf_h = sh * 0.52;
+        let shelf_y = sh * 0.2;
+        let shelf_spacing = sw * 0.125;
+        let shelf_count = ((sw - sw * 0.1) / shelf_spacing).floor().min(10.0).max(4.0) as i32;
+
+        for i in 0..shelf_count {
+            let shelf_x = sw * 0.05 + i as f32 * shelf_spacing;
+
+            // Shelf frame
+            draw_rectangle(
+                shelf_x,
+                shelf_y,
+                shelf_w,
+                shelf_h,
+                Color::new(0.4, 0.3, 0.2, 1.0),
+            );
+
+            // Shelves
+            let shelf_rows = 5;
+            let row_h = shelf_h / shelf_rows as f32;
+
+            for j in 0..shelf_rows {
+                let row_y = shelf_y + j as f32 * row_h + row_h * 0.15;
+                let row_shelf_h = row_h * 0.78;
+
                 draw_rectangle(
-                    shelf_x + 5.0,
-                    shelf_y,
-                    140.0,
-                    65.0,
+                    shelf_x + shelf_w * 0.05,
+                    row_y,
+                    shelf_w * 0.9,
+                    row_shelf_h,
                     Color::new(0.3, 0.2, 0.1, 1.0),
                 );
-                for k in 0..10 {
-                    let book_x = shelf_x + 10.0 + k as f32 * 13.0;
+
+                // Books
+                let book_w = shelf_w * 0.08;
+                let book_count = ((shelf_w * 0.9) / book_w).floor() as i32;
+
+                for k in 0..book_count {
+                    let book_x = shelf_x + shelf_w * 0.08 + k as f32 * book_w;
                     let book_color = if k % 3 == 0 {
                         Color::new(0.7, 0.2, 0.2, 1.0)
                     } else if k % 3 == 1 {
@@ -2473,112 +3188,147 @@ impl GameplayState {
                     } else {
                         Color::new(0.2, 0.6, 0.2, 1.0)
                     };
-                    draw_rectangle(book_x, shelf_y + 5.0, 10.0, 55.0, book_color);
+                    draw_rectangle(
+                        book_x,
+                        row_y + row_shelf_h * 0.1,
+                        book_w * 0.9,
+                        row_shelf_h * 0.8,
+                        book_color,
+                    );
                 }
             }
         }
 
+        // Reading table - resolution friendly
+        let table_w = sw * 0.13;
+        let table_h = sh * 0.1;
+        let table_x = sw * 0.5 - table_w * 0.5;
+        let table_y = sh * 0.59;
+
+        draw_rectangle(table_x, table_y, table_w, table_h, Color::new(0.6, 0.5, 0.4, 1.0));
+
+        // Chairs
+        let chair_size = table_h * 0.75;
+        let chair_y = table_y - chair_size - sh * 0.015;
+
         draw_rectangle(
-            screen_width() * 0.5 - 100.0,
-            450.0,
-            200.0,
-            80.0,
-            Color::new(0.6, 0.5, 0.4, 1.0),
-        );
-        draw_rectangle(
-            screen_width() * 0.5 - 80.0,
-            390.0,
-            60.0,
-            60.0,
+            table_x + table_w * 0.1,
+            chair_y,
+            chair_size,
+            chair_size,
             Color::new(0.3, 0.3, 0.3, 1.0),
         );
         draw_rectangle(
-            screen_width() * 0.5 + 20.0,
-            390.0,
-            60.0,
-            60.0,
+            table_x + table_w * 0.6,
+            chair_y,
+            chair_size,
+            chair_size,
             Color::new(0.3, 0.3, 0.3, 1.0),
         );
     }
 
     fn render_rooftop(&self) {
-        let floor_y = 600.0;
+        let sw = screen_width();
+        let sh = screen_height();
+        let floor_y = sh * 0.78;
+
+        // Rooftop floor
         draw_rectangle(
             0.0,
             floor_y,
-            screen_width(),
-            screen_height() - floor_y,
+            sw,
+            sh - floor_y,
             Color::new(0.4, 0.4, 0.4, 1.0),
         );
 
-        for i in 0..3 {
+        // Clouds - resolution friendly
+        let cloud_count = ((sw / (sw * 0.32)).ceil() as i32).max(2).min(5);
+        let cloud_spacing = sw / cloud_count as f32;
+
+        for i in 0..cloud_count {
+            let cloud_x = cloud_spacing * 0.3 + i as f32 * cloud_spacing;
+            let cloud_y = sh * 0.13;
+            let cloud_r1 = sw * 0.05;
+            let cloud_r2 = sw * 0.038;
+
+            draw_circle(cloud_x, cloud_y, cloud_r1, Color::new(1.0, 1.0, 1.0, 0.8));
             draw_circle(
-                200.0 + i as f32 * 500.0,
-                100.0,
-                80.0,
-                Color::new(1.0, 1.0, 1.0, 0.8),
-            );
-            draw_circle(
-                250.0 + i as f32 * 500.0,
-                120.0,
-                60.0,
+                cloud_x + cloud_r1 * 0.6,
+                cloud_y + cloud_r1 * 0.25,
+                cloud_r2,
                 Color::new(1.0, 1.0, 1.0, 0.7),
             );
         }
 
+        // Roof edge and railing
+        let edge_y = floor_y - sh * 0.026;
+        draw_rectangle(0.0, edge_y, sw, sh * 0.026, Color::new(0.6, 0.6, 0.6, 1.0));
         draw_rectangle(
             0.0,
-            580.0,
-            screen_width(),
-            20.0,
-            Color::new(0.6, 0.6, 0.6, 1.0),
-        );
-        draw_rectangle(
-            0.0,
-            590.0,
-            screen_width(),
-            5.0,
+            edge_y + sh * 0.013,
+            sw,
+            sh * 0.0065,
             Color::new(0.8, 0.8, 0.0, 1.0),
         );
 
-        for i in 0..10 {
-            let fence_x = i as f32 * 150.0;
-            draw_rectangle(fence_x, 450.0, 5.0, 130.0, Color::new(0.3, 0.3, 0.3, 1.0));
+        // Safety fence - resolution friendly
+        let fence_y = sh * 0.59;
+        let fence_h = sh * 0.17;
+        let fence_spacing = sw * 0.09;
+        let fence_count = (sw / fence_spacing).ceil() as i32;
+
+        for i in 0..fence_count {
+            let fence_x = i as f32 * fence_spacing;
+            draw_rectangle(
+                fence_x,
+                fence_y,
+                sw * 0.004,
+                fence_h,
+                Color::new(0.3, 0.3, 0.3, 1.0),
+            );
         }
+
+        // Horizontal fence rails
+        draw_rectangle(0.0, fence_y, sw, sh * 0.01, Color::new(0.3, 0.3, 0.3, 1.0));
         draw_rectangle(
             0.0,
-            450.0,
-            screen_width(),
-            8.0,
-            Color::new(0.3, 0.3, 0.3, 1.0),
-        );
-        draw_rectangle(
-            0.0,
-            515.0,
-            screen_width(),
-            8.0,
+            fence_y + fence_h * 0.5,
+            sw,
+            sh * 0.01,
             Color::new(0.3, 0.3, 0.3, 1.0),
         );
 
-        draw_rectangle(100.0, 350.0, 80.0, 100.0, Color::new(0.7, 0.7, 0.7, 1.0));
-        draw_rectangle(110.0, 360.0, 60.0, 30.0, Color::new(0.2, 0.2, 0.2, 1.0));
+        // AC unit - resolution friendly
+        let ac_w = sw * 0.06;
+        let ac_h = sh * 0.13;
+        let ac_x = sw * 0.08;
+        let ac_y = sh * 0.46;
 
+        draw_rectangle(ac_x, ac_y, ac_w, ac_h, Color::new(0.7, 0.7, 0.7, 1.0));
         draw_rectangle(
-            screen_width() - 200.0,
-            300.0,
-            150.0,
-            150.0,
-            Color::new(0.8, 0.8, 0.8, 1.0),
+            ac_x + ac_w * 0.125,
+            ac_y + ac_h * 0.1,
+            ac_w * 0.75,
+            ac_h * 0.3,
+            Color::new(0.2, 0.2, 0.2, 1.0),
         );
+
+        // Water tower - resolution friendly
+        let tower_w = sw * 0.095;
+        let tower_h = sh * 0.2;
+        let tower_x = sw - tower_w - sw * 0.04;
+        let tower_y = sh * 0.39;
+
+        draw_rectangle(tower_x, tower_y, tower_w, tower_h, Color::new(0.8, 0.8, 0.8, 1.0));
         draw_circle(
-            screen_width() - 125.0,
-            375.0,
-            40.0,
+            tower_x + tower_w * 0.5,
+            tower_y + tower_h * 0.5,
+            tower_w * 0.27,
             Color::new(0.6, 0.6, 0.6, 1.0),
         );
     }
 
-    fn render_character(&self, base_pos: Vec2, fighter: &Fighter) {
+    fn render_character(&self, base_pos: Vec2, fighter: &Fighter, is_player: bool) {
         let state = fighter.state;
         let time = get_time() as f32;
         let attack_phase = Self::attack_phase(state, fighter.attack_timer);
@@ -2599,24 +3349,78 @@ impl GameplayState {
 
         let pos = base_pos + Vec2::new(sway, bob);
 
+        // Render player with selected character appearance
+        if is_player {
+            self.render_selected_character(pos, state, attack_phase, fighter.facing);
+            return;
+        }
+
         match &fighter.character_type {
             CharacterType::Bas => {
                 // HEAD with depth and shading
-                draw_circle(pos.x + 1.5, pos.y - 43.0, 26.0, Color::new(0.7, 0.6, 0.5, 0.5)); // Shadow
+                draw_circle(
+                    pos.x + 1.5,
+                    pos.y - 43.0,
+                    26.0,
+                    Color::new(0.7, 0.6, 0.5, 0.5),
+                ); // Shadow
                 draw_circle(pos.x, pos.y - 45.0, 26.0, Color::new(0.92, 0.82, 0.72, 1.0)); // Base
-                draw_circle(pos.x - 6.0, pos.y - 48.0, 10.0, Color::new(1.0, 0.9, 0.8, 0.4)); // Highlight
+                draw_circle(
+                    pos.x - 6.0,
+                    pos.y - 48.0,
+                    10.0,
+                    Color::new(1.0, 0.9, 0.8, 0.4),
+                ); // Highlight
 
                 // NECK
-                draw_rectangle(pos.x - 8.0, pos.y - 22.0, 16.0, 10.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                draw_rectangle(
+                    pos.x - 8.0,
+                    pos.y - 22.0,
+                    16.0,
+                    10.0,
+                    Color::new(0.9, 0.8, 0.7, 1.0),
+                );
 
                 // TORSO with blue shirt and depth
-                draw_rectangle(pos.x - 22.0, pos.y - 18.0, 44.0, 52.0, Color::new(0.15, 0.2, 0.6, 1.0)); // Shadow layer
-                draw_rectangle(pos.x - 20.0, pos.y - 20.0, 40.0, 50.0, Color::new(0.2, 0.35, 0.85, 1.0)); // Main shirt
-                draw_rectangle(pos.x - 20.0, pos.y - 20.0, 40.0, 8.0, Color::new(0.3, 0.45, 0.95, 1.0)); // Shoulder highlight
+                draw_rectangle(
+                    pos.x - 22.0,
+                    pos.y - 18.0,
+                    44.0,
+                    52.0,
+                    Color::new(0.15, 0.2, 0.6, 1.0),
+                ); // Shadow layer
+                draw_rectangle(
+                    pos.x - 20.0,
+                    pos.y - 20.0,
+                    40.0,
+                    50.0,
+                    Color::new(0.2, 0.35, 0.85, 1.0),
+                ); // Main shirt
+                draw_rectangle(
+                    pos.x - 20.0,
+                    pos.y - 20.0,
+                    40.0,
+                    8.0,
+                    Color::new(0.3, 0.45, 0.95, 1.0),
+                ); // Shoulder highlight
 
                 // Collar
-                draw_line(pos.x - 10.0, pos.y - 20.0, pos.x, pos.y - 10.0, 3.0, Color::new(0.15, 0.25, 0.7, 1.0));
-                draw_line(pos.x + 10.0, pos.y - 20.0, pos.x, pos.y - 10.0, 3.0, Color::new(0.15, 0.25, 0.7, 1.0));
+                draw_line(
+                    pos.x - 10.0,
+                    pos.y - 20.0,
+                    pos.x,
+                    pos.y - 10.0,
+                    3.0,
+                    Color::new(0.15, 0.25, 0.7, 1.0),
+                );
+                draw_line(
+                    pos.x + 10.0,
+                    pos.y - 20.0,
+                    pos.x,
+                    pos.y - 10.0,
+                    3.0,
+                    Color::new(0.15, 0.25, 0.7, 1.0),
+                );
 
                 // Shirt buttons
                 for i in 0..3 {
@@ -2626,85 +3430,329 @@ impl GameplayState {
                 }
 
                 // PANTS with shading
-                draw_rectangle(pos.x - 16.0, pos.y + 32.0, 32.0, 42.0, Color::new(0.25, 0.25, 0.35, 1.0)); // Shadow
-                draw_rectangle(pos.x - 15.0, pos.y + 30.0, 30.0, 40.0, Color::new(0.35, 0.35, 0.45, 1.0)); // Main pants
-                draw_rectangle(pos.x - 15.0, pos.y + 30.0, 30.0, 6.0, Color::new(0.45, 0.45, 0.55, 1.0)); // Waist highlight
+                draw_rectangle(
+                    pos.x - 16.0,
+                    pos.y + 32.0,
+                    32.0,
+                    42.0,
+                    Color::new(0.25, 0.25, 0.35, 1.0),
+                ); // Shadow
+                draw_rectangle(
+                    pos.x - 15.0,
+                    pos.y + 30.0,
+                    30.0,
+                    40.0,
+                    Color::new(0.35, 0.35, 0.45, 1.0),
+                ); // Main pants
+                draw_rectangle(
+                    pos.x - 15.0,
+                    pos.y + 30.0,
+                    30.0,
+                    6.0,
+                    Color::new(0.45, 0.45, 0.55, 1.0),
+                ); // Waist highlight
 
                 // Belt
-                draw_rectangle(pos.x - 16.0, pos.y + 28.0, 32.0, 5.0, Color::new(0.2, 0.15, 0.1, 1.0));
-                draw_rectangle(pos.x - 4.0, pos.y + 27.0, 8.0, 7.0, Color::new(0.6, 0.5, 0.3, 1.0)); // Buckle
-                draw_rectangle(pos.x - 2.0, pos.y + 28.0, 4.0, 5.0, Color::new(0.4, 0.3, 0.2, 1.0));
+                draw_rectangle(
+                    pos.x - 16.0,
+                    pos.y + 28.0,
+                    32.0,
+                    5.0,
+                    Color::new(0.2, 0.15, 0.1, 1.0),
+                );
+                draw_rectangle(
+                    pos.x - 4.0,
+                    pos.y + 27.0,
+                    8.0,
+                    7.0,
+                    Color::new(0.6, 0.5, 0.3, 1.0),
+                ); // Buckle
+                draw_rectangle(
+                    pos.x - 2.0,
+                    pos.y + 28.0,
+                    4.0,
+                    5.0,
+                    Color::new(0.4, 0.3, 0.2, 1.0),
+                );
 
                 // LEGS with depth
-                draw_rectangle(pos.x - 11.0, pos.y + 72.0, 10.0, 22.0, Color::new(0.25, 0.25, 0.35, 1.0));
-                draw_rectangle(pos.x + 1.0, pos.y + 72.0, 10.0, 22.0, Color::new(0.25, 0.25, 0.35, 1.0));
-                draw_rectangle(pos.x - 10.0, pos.y + 70.0, 8.0, 20.0, Color::new(0.35, 0.35, 0.45, 1.0));
-                draw_rectangle(pos.x + 2.0, pos.y + 70.0, 8.0, 20.0, Color::new(0.35, 0.35, 0.45, 1.0));
+                draw_rectangle(
+                    pos.x - 11.0,
+                    pos.y + 72.0,
+                    10.0,
+                    22.0,
+                    Color::new(0.25, 0.25, 0.35, 1.0),
+                );
+                draw_rectangle(
+                    pos.x + 1.0,
+                    pos.y + 72.0,
+                    10.0,
+                    22.0,
+                    Color::new(0.25, 0.25, 0.35, 1.0),
+                );
+                draw_rectangle(
+                    pos.x - 10.0,
+                    pos.y + 70.0,
+                    8.0,
+                    20.0,
+                    Color::new(0.35, 0.35, 0.45, 1.0),
+                );
+                draw_rectangle(
+                    pos.x + 2.0,
+                    pos.y + 70.0,
+                    8.0,
+                    20.0,
+                    Color::new(0.35, 0.35, 0.45, 1.0),
+                );
 
                 // SHOES with detail
-                draw_ellipse(pos.x - 6.0, pos.y + 92.0, 10.0, 6.0, 0.0, Color::new(0.15, 0.15, 0.15, 1.0));
-                draw_ellipse(pos.x + 6.0, pos.y + 92.0, 10.0, 6.0, 0.0, Color::new(0.15, 0.15, 0.15, 1.0));
-                draw_ellipse(pos.x - 6.0, pos.y + 91.0, 9.0, 5.0, 0.0, Color::new(0.25, 0.25, 0.25, 1.0));
-                draw_ellipse(pos.x + 6.0, pos.y + 91.0, 9.0, 5.0, 0.0, Color::new(0.25, 0.25, 0.25, 1.0));
+                draw_ellipse(
+                    pos.x - 6.0,
+                    pos.y + 92.0,
+                    10.0,
+                    6.0,
+                    0.0,
+                    Color::new(0.15, 0.15, 0.15, 1.0),
+                );
+                draw_ellipse(
+                    pos.x + 6.0,
+                    pos.y + 92.0,
+                    10.0,
+                    6.0,
+                    0.0,
+                    Color::new(0.15, 0.15, 0.15, 1.0),
+                );
+                draw_ellipse(
+                    pos.x - 6.0,
+                    pos.y + 91.0,
+                    9.0,
+                    5.0,
+                    0.0,
+                    Color::new(0.25, 0.25, 0.25, 1.0),
+                );
+                draw_ellipse(
+                    pos.x + 6.0,
+                    pos.y + 91.0,
+                    9.0,
+                    5.0,
+                    0.0,
+                    Color::new(0.25, 0.25, 0.25, 1.0),
+                );
 
                 // ARMS with muscles and skin tone
                 let arm_idle = Vec2::new(15.0, (time * 12.0).cos() * 1.5);
                 let arm_offset = match state {
-                    FighterState::LightAttack | FighterState::HeavyAttack | FighterState::Special | FighterState::Super => {
+                    FighterState::LightAttack
+                    | FighterState::HeavyAttack
+                    | FighterState::Special
+                    | FighterState::Super => {
                         Vec2::new(28.0 + 40.0 * attack_phase, -12.0 - 24.0 * attack_phase)
                     }
                     _ => arm_idle,
                 };
 
                 // Left arm (back)
-                draw_rectangle(pos.x - 26.0, pos.y - 9.0, 10.0, 32.0, Color::new(0.82, 0.72, 0.62, 1.0));
-                draw_rectangle(pos.x - 25.0, pos.y - 10.0, 8.0, 30.0, Color::new(0.9, 0.8, 0.7, 1.0));
-                draw_rectangle(pos.x - 25.0, pos.y - 10.0, 8.0, 8.0, Color::new(1.0, 0.9, 0.8, 0.6)); // Highlight
+                draw_rectangle(
+                    pos.x - 26.0,
+                    pos.y - 9.0,
+                    10.0,
+                    32.0,
+                    Color::new(0.82, 0.72, 0.62, 1.0),
+                );
+                draw_rectangle(
+                    pos.x - 25.0,
+                    pos.y - 10.0,
+                    8.0,
+                    30.0,
+                    Color::new(0.9, 0.8, 0.7, 1.0),
+                );
+                draw_rectangle(
+                    pos.x - 25.0,
+                    pos.y - 10.0,
+                    8.0,
+                    8.0,
+                    Color::new(1.0, 0.9, 0.8, 0.6),
+                ); // Highlight
 
                 // Right arm (front, animated)
-                draw_rectangle(pos.x + 18.0, pos.y - 9.0 + arm_offset.y, 10.0, 32.0, Color::new(0.82, 0.72, 0.62, 1.0));
-                draw_rectangle(pos.x + 17.0, pos.y - 10.0 + arm_offset.y, 8.0, 30.0, Color::new(0.9, 0.8, 0.7, 1.0));
-                draw_rectangle(pos.x + 17.0, pos.y - 10.0 + arm_offset.y, 8.0, 8.0, Color::new(1.0, 0.9, 0.8, 0.6));
+                draw_rectangle(
+                    pos.x + 18.0,
+                    pos.y - 9.0 + arm_offset.y,
+                    10.0,
+                    32.0,
+                    Color::new(0.82, 0.72, 0.62, 1.0),
+                );
+                draw_rectangle(
+                    pos.x + 17.0,
+                    pos.y - 10.0 + arm_offset.y,
+                    8.0,
+                    30.0,
+                    Color::new(0.9, 0.8, 0.7, 1.0),
+                );
+                draw_rectangle(
+                    pos.x + 17.0,
+                    pos.y - 10.0 + arm_offset.y,
+                    8.0,
+                    8.0,
+                    Color::new(1.0, 0.9, 0.8, 0.6),
+                );
 
                 // HANDS/FISTS
-                if matches!(state, FighterState::LightAttack | FighterState::HeavyAttack | FighterState::Special | FighterState::Super) {
-                    draw_circle(pos.x + 26.0 + arm_offset.x, pos.y + arm_offset.y + 2.0, 10.0, Color::new(0.82, 0.72, 0.62, 1.0));
-                    draw_circle(pos.x + 25.0 + arm_offset.x, pos.y + arm_offset.y, 9.0, Color::new(0.9, 0.8, 0.7, 1.0));
-                    self.render_attack_slash(pos + Vec2::new(25.0 + arm_offset.x, arm_offset.y), fighter, attack_phase);
+                if matches!(
+                    state,
+                    FighterState::LightAttack
+                        | FighterState::HeavyAttack
+                        | FighterState::Special
+                        | FighterState::Super
+                ) {
+                    draw_circle(
+                        pos.x + 26.0 + arm_offset.x,
+                        pos.y + arm_offset.y + 2.0,
+                        10.0,
+                        Color::new(0.82, 0.72, 0.62, 1.0),
+                    );
+                    draw_circle(
+                        pos.x + 25.0 + arm_offset.x,
+                        pos.y + arm_offset.y,
+                        9.0,
+                        Color::new(0.9, 0.8, 0.7, 1.0),
+                    );
+                    self.render_attack_slash(
+                        pos + Vec2::new(25.0 + arm_offset.x, arm_offset.y),
+                        fighter,
+                        attack_phase,
+                    );
                 } else {
-                    draw_circle(pos.x + 17.0, pos.y + 22.0, 6.0, Color::new(0.9, 0.8, 0.7, 1.0));
-                    draw_circle(pos.x - 25.0, pos.y + 22.0, 6.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                    draw_circle(
+                        pos.x + 17.0,
+                        pos.y + 22.0,
+                        6.0,
+                        Color::new(0.9, 0.8, 0.7, 1.0),
+                    );
+                    draw_circle(
+                        pos.x - 25.0,
+                        pos.y + 22.0,
+                        6.0,
+                        Color::new(0.9, 0.8, 0.7, 1.0),
+                    );
                 }
 
                 // FACE DETAILS
                 // Eyes
-                draw_circle(pos.x - 9.0, pos.y - 47.0, 5.0, Color::new(1.0, 1.0, 1.0, 1.0));
-                draw_circle(pos.x + 9.0, pos.y - 47.0, 5.0, Color::new(1.0, 1.0, 1.0, 1.0));
-                draw_circle(pos.x - 8.0, pos.y - 46.0, 3.5, Color::new(0.15, 0.3, 0.5, 1.0));
-                draw_circle(pos.x + 8.0, pos.y - 46.0, 3.5, Color::new(0.15, 0.3, 0.5, 1.0));
-                draw_circle(pos.x - 7.0, pos.y - 47.0, 1.5, Color::new(1.0, 1.0, 1.0, 0.8)); // Glint
-                draw_circle(pos.x + 9.0, pos.y - 47.0, 1.5, Color::new(1.0, 1.0, 1.0, 0.8));
+                draw_circle(
+                    pos.x - 9.0,
+                    pos.y - 47.0,
+                    5.0,
+                    Color::new(1.0, 1.0, 1.0, 1.0),
+                );
+                draw_circle(
+                    pos.x + 9.0,
+                    pos.y - 47.0,
+                    5.0,
+                    Color::new(1.0, 1.0, 1.0, 1.0),
+                );
+                draw_circle(
+                    pos.x - 8.0,
+                    pos.y - 46.0,
+                    3.5,
+                    Color::new(0.15, 0.3, 0.5, 1.0),
+                );
+                draw_circle(
+                    pos.x + 8.0,
+                    pos.y - 46.0,
+                    3.5,
+                    Color::new(0.15, 0.3, 0.5, 1.0),
+                );
+                draw_circle(
+                    pos.x - 7.0,
+                    pos.y - 47.0,
+                    1.5,
+                    Color::new(1.0, 1.0, 1.0, 0.8),
+                ); // Glint
+                draw_circle(
+                    pos.x + 9.0,
+                    pos.y - 47.0,
+                    1.5,
+                    Color::new(1.0, 1.0, 1.0, 0.8),
+                );
 
                 // Eyebrows
-                draw_line(pos.x - 12.0, pos.y - 52.0, pos.x - 5.0, pos.y - 53.0, 2.0, Color::new(0.3, 0.25, 0.2, 1.0));
-                draw_line(pos.x + 12.0, pos.y - 52.0, pos.x + 5.0, pos.y - 53.0, 2.0, Color::new(0.3, 0.25, 0.2, 1.0));
+                draw_line(
+                    pos.x - 12.0,
+                    pos.y - 52.0,
+                    pos.x - 5.0,
+                    pos.y - 53.0,
+                    2.0,
+                    Color::new(0.3, 0.25, 0.2, 1.0),
+                );
+                draw_line(
+                    pos.x + 12.0,
+                    pos.y - 52.0,
+                    pos.x + 5.0,
+                    pos.y - 53.0,
+                    2.0,
+                    Color::new(0.3, 0.25, 0.2, 1.0),
+                );
 
                 // Nose
-                draw_line(pos.x, pos.y - 44.0, pos.x + 2.0, pos.y - 40.0, 2.0, Color::new(0.82, 0.72, 0.62, 1.0));
+                draw_line(
+                    pos.x,
+                    pos.y - 44.0,
+                    pos.x + 2.0,
+                    pos.y - 40.0,
+                    2.0,
+                    Color::new(0.82, 0.72, 0.62, 1.0),
+                );
 
                 // Mouth
-                let mouth_curve_y = if matches!(state, FighterState::Hitstun) { -36.0 } else { -38.0 };
-                draw_line(pos.x - 6.0, pos.y + mouth_curve_y, pos.x + 6.0, pos.y + mouth_curve_y, 2.0, Color::new(0.6, 0.3, 0.3, 1.0));
+                let mouth_curve_y = if matches!(state, FighterState::Hitstun) {
+                    -36.0
+                } else {
+                    -38.0
+                };
+                draw_line(
+                    pos.x - 6.0,
+                    pos.y + mouth_curve_y,
+                    pos.x + 6.0,
+                    pos.y + mouth_curve_y,
+                    2.0,
+                    Color::new(0.6, 0.3, 0.3, 1.0),
+                );
 
                 // HAIR with volume
-                draw_circle(pos.x - 10.0, pos.y - 60.0, 12.0, Color::new(0.35, 0.28, 0.22, 1.0));
-                draw_circle(pos.x + 8.0, pos.y - 62.0, 11.0, Color::new(0.35, 0.28, 0.22, 1.0));
+                draw_circle(
+                    pos.x - 10.0,
+                    pos.y - 60.0,
+                    12.0,
+                    Color::new(0.35, 0.28, 0.22, 1.0),
+                );
+                draw_circle(
+                    pos.x + 8.0,
+                    pos.y - 62.0,
+                    11.0,
+                    Color::new(0.35, 0.28, 0.22, 1.0),
+                );
                 draw_circle(pos.x, pos.y - 65.0, 13.0, Color::new(0.35, 0.28, 0.22, 1.0));
-                draw_circle(pos.x - 15.0, pos.y - 55.0, 10.0, Color::new(0.35, 0.28, 0.22, 1.0));
-                draw_circle(pos.x + 13.0, pos.y - 57.0, 9.0, Color::new(0.35, 0.28, 0.22, 1.0));
+                draw_circle(
+                    pos.x - 15.0,
+                    pos.y - 55.0,
+                    10.0,
+                    Color::new(0.35, 0.28, 0.22, 1.0),
+                );
+                draw_circle(
+                    pos.x + 13.0,
+                    pos.y - 57.0,
+                    9.0,
+                    Color::new(0.35, 0.28, 0.22, 1.0),
+                );
 
                 // Hair highlights
-                draw_circle(pos.x - 5.0, pos.y - 63.0, 5.0, Color::new(0.45, 0.38, 0.32, 0.6));
+                draw_circle(
+                    pos.x - 5.0,
+                    pos.y - 63.0,
+                    5.0,
+                    Color::new(0.45, 0.38, 0.32, 0.6),
+                );
             }
             CharacterType::Wolters => {
                 draw_circle(pos.x, pos.y - 45.0, 28.0, Color::new(0.9, 0.7, 0.6, 1.0));
@@ -3403,19 +4451,58 @@ impl GameplayState {
             }
             CharacterType::KeizerBomTaha => {
                 // Plane body - metallic silver
-                draw_rectangle(pos.x - 50.0, pos.y - 20.0, 100.0, 35.0, Color::new(0.7, 0.7, 0.75, 1.0));
-                draw_rectangle(pos.x - 48.0, pos.y - 18.0, 96.0, 31.0, Color::new(0.8, 0.8, 0.85, 1.0));
+                draw_rectangle(
+                    pos.x - 50.0,
+                    pos.y - 20.0,
+                    100.0,
+                    35.0,
+                    Color::new(0.7, 0.7, 0.75, 1.0),
+                );
+                draw_rectangle(
+                    pos.x - 48.0,
+                    pos.y - 18.0,
+                    96.0,
+                    31.0,
+                    Color::new(0.8, 0.8, 0.85, 1.0),
+                );
 
                 // Cockpit window
-                draw_rectangle(pos.x - 30.0, pos.y - 15.0, 25.0, 15.0, Color::new(0.3, 0.5, 0.7, 0.7));
+                draw_rectangle(
+                    pos.x - 30.0,
+                    pos.y - 15.0,
+                    25.0,
+                    15.0,
+                    Color::new(0.3, 0.5, 0.7, 0.7),
+                );
 
                 // Wings
-                draw_rectangle(pos.x - 80.0, pos.y, 160.0, 12.0, Color::new(0.65, 0.65, 0.7, 1.0));
+                draw_rectangle(
+                    pos.x - 80.0,
+                    pos.y,
+                    160.0,
+                    12.0,
+                    Color::new(0.65, 0.65, 0.7, 1.0),
+                );
 
                 // Keizer head in cockpit
-                draw_circle(pos.x - 17.0, pos.y - 8.0, 10.0, Color::new(0.9, 0.8, 0.7, 1.0));
-                draw_circle(pos.x - 20.0, pos.y - 10.0, 3.0, Color::new(0.2, 0.2, 0.2, 1.0));
-                draw_circle(pos.x - 14.0, pos.y - 10.0, 3.0, Color::new(0.2, 0.2, 0.2, 1.0));
+                draw_circle(
+                    pos.x - 17.0,
+                    pos.y - 8.0,
+                    10.0,
+                    Color::new(0.9, 0.8, 0.7, 1.0),
+                );
+                draw_circle(
+                    pos.x - 20.0,
+                    pos.y - 10.0,
+                    3.0,
+                    Color::new(0.2, 0.2, 0.2, 1.0),
+                );
+                draw_circle(
+                    pos.x - 14.0,
+                    pos.y - 10.0,
+                    3.0,
+                    Color::new(0.2, 0.2, 0.2, 1.0),
+                );
 
                 // Propeller (animated)
                 let prop_angle = time * 20.0;
@@ -3423,7 +4510,14 @@ impl GameplayState {
                     let angle = prop_angle + (i as f32 * std::f32::consts::PI * 2.0 / 3.0);
                     let px = pos.x + 50.0 + angle.cos() * 25.0;
                     let py = pos.y + angle.sin() * 25.0;
-                    draw_line(pos.x + 50.0, pos.y, px, py, 3.0, Color::new(0.5, 0.5, 0.5, 0.8));
+                    draw_line(
+                        pos.x + 50.0,
+                        pos.y,
+                        px,
+                        py,
+                        3.0,
+                        Color::new(0.5, 0.5, 0.5, 0.8),
+                    );
                 }
 
                 // Bombs hanging underneath
@@ -3431,9 +4525,35 @@ impl GameplayState {
                 for i in 0..2 {
                     let bomb_x = pos.x - 20.0 + i as f32 * 40.0;
                     let bomb_y = pos.y + 20.0 + bomb_offset;
-                    draw_ellipse(bomb_x, bomb_y, 8.0, 12.0, 0.0, Color::new(0.2, 0.2, 0.2, 1.0));
-                    draw_ellipse(bomb_x, bomb_y - 10.0, 3.0, 5.0, 0.0, Color::new(0.8, 0.2, 0.2, 1.0)); // Fuse
+                    draw_ellipse(
+                        bomb_x,
+                        bomb_y,
+                        8.0,
+                        12.0,
+                        0.0,
+                        Color::new(0.2, 0.2, 0.2, 1.0),
+                    );
+                    draw_ellipse(
+                        bomb_x,
+                        bomb_y - 10.0,
+                        3.0,
+                        5.0,
+                        0.0,
+                        Color::new(0.8, 0.2, 0.2, 1.0),
+                    ); // Fuse
                 }
+            }
+            CharacterType::Gefferinho | CharacterType::YigitBaba => {
+                // Player characters - handled by render_selected_character above
+                // This should not be reached but is here for completeness
+                draw_circle(pos.x, pos.y - 45.0, 26.0, Color::new(0.9, 0.8, 0.7, 1.0));
+                draw_rectangle(
+                    pos.x - 20.0,
+                    pos.y - 20.0,
+                    40.0,
+                    50.0,
+                    Color::new(0.5, 0.5, 0.5, 1.0),
+                );
             }
         }
 
@@ -3461,6 +4581,375 @@ impl GameplayState {
                 Color::new(0.4, 0.8, 1.0, aura_alpha),
             );
         }
+    }
+
+    fn render_selected_character(
+        &self,
+        pos: Vec2,
+        state: FighterState,
+        attack_phase: f32,
+        facing: f32,
+    ) {
+        let time = get_time() as f32;
+
+        // Get character-specific attributes based on selection
+        let (skin_color, head_size, body_scale, hair_style) = match self.selected_character {
+            CharacterId::Bas => (Color::new(0.85, 0.65, 0.45, 1.0), 28.0, 1.15, 0), // Bigger, brown skin
+            CharacterId::Berkay => (Color::new(1.0, 0.85, 0.70, 1.0), 26.0, 1.0, 1), // Normal, light skin
+            CharacterId::Gefferinho => (Color::new(0.65, 0.45, 0.30, 1.0), 26.0, 1.0, 2), // Brown skin
+            CharacterId::Hadi => (Color::new(0.65, 0.45, 0.30, 1.0), 26.0, 1.0, 3), // Brown skin
+            CharacterId::Nitin => (Color::new(0.65, 0.45, 0.30, 1.0), 26.0, 1.0, 4), // Brown skin
+            CharacterId::Luca => (Color::new(1.0, 0.85, 0.70, 1.0), 26.0, 1.0, 5), // Normal, light skin
+            CharacterId::PalaBaba => (Color::new(1.0, 0.90, 0.80, 1.0), 26.0, 1.0, 6), // White skin
+        };
+
+        let brown_hair = Color::new(0.3, 0.2, 0.1, 1.0);
+        let black_hair = Color::new(0.1, 0.1, 0.1, 1.0);
+
+        // Arm animation
+        let arm_idle = Vec2::new(15.0, (time * 12.0).cos() * 1.5);
+        let arm_offset = match state {
+            FighterState::LightAttack
+            | FighterState::HeavyAttack
+            | FighterState::Special
+            | FighterState::Super => {
+                Vec2::new(28.0 + 40.0 * attack_phase, -12.0 - 24.0 * attack_phase)
+            }
+            _ => arm_idle,
+        };
+
+        // Shadow
+        draw_circle(
+            pos.x + 1.5,
+            pos.y - 43.0 * body_scale,
+            head_size * 0.9,
+            Color::new(0.7, 0.6, 0.5, 0.5),
+        );
+
+        // HEAD
+        draw_circle(pos.x, pos.y - 45.0 * body_scale, head_size, skin_color);
+        draw_circle(
+            pos.x - 6.0,
+            pos.y - 48.0 * body_scale,
+            10.0,
+            Color::new(
+                skin_color.r * 1.1,
+                skin_color.g * 1.1,
+                skin_color.b * 1.1,
+                0.4,
+            ),
+        );
+
+        // HAIR based on character
+        match hair_style {
+            0 => {
+                // Bas - big curly hair
+                for i in 0..6 {
+                    let angle = (i as f32 / 6.0) * std::f32::consts::PI * 2.0;
+                    draw_circle(
+                        pos.x + angle.cos() * head_size * 0.7,
+                        pos.y - 45.0 * body_scale - head_size * 0.5 + angle.sin() * head_size * 0.5,
+                        head_size * 0.4,
+                        brown_hair,
+                    );
+                }
+            }
+            1 => {
+                // Berkay - fluffy hair
+                draw_circle(
+                    pos.x,
+                    pos.y - 60.0 * body_scale,
+                    head_size * 0.85,
+                    brown_hair,
+                );
+                draw_circle(
+                    pos.x - head_size * 0.4,
+                    pos.y - 55.0 * body_scale,
+                    head_size * 0.5,
+                    brown_hair,
+                );
+                draw_circle(
+                    pos.x + head_size * 0.4,
+                    pos.y - 55.0 * body_scale,
+                    head_size * 0.5,
+                    brown_hair,
+                );
+            }
+            2 => {
+                // Gefferinho - curly hair
+                for i in 0..5 {
+                    let angle = (i as f32 / 5.0) * std::f32::consts::PI * 2.0;
+                    draw_circle(
+                        pos.x + angle.cos() * head_size * 0.6,
+                        pos.y - 45.0 * body_scale - head_size * 0.4 + angle.sin() * head_size * 0.4,
+                        head_size * 0.35,
+                        brown_hair,
+                    );
+                }
+            }
+            3 => {
+                // Hadi - buzz cut
+                draw_circle(
+                    pos.x,
+                    pos.y - 50.0 * body_scale,
+                    head_size * 0.9,
+                    black_hair,
+                );
+            }
+            4 => {
+                // Nitin - slicked back
+                draw_rectangle(
+                    pos.x - head_size * 0.7,
+                    pos.y - 65.0 * body_scale,
+                    head_size * 1.4,
+                    head_size * 0.7,
+                    brown_hair,
+                );
+            }
+            5 => {
+                // Luca - normal hair
+                draw_circle(
+                    pos.x,
+                    pos.y - 58.0 * body_scale,
+                    head_size * 0.9,
+                    brown_hair,
+                );
+            }
+            6 => {
+                // Yigit Baba - medium hair
+                draw_circle(
+                    pos.x,
+                    pos.y - 58.0 * body_scale,
+                    head_size * 0.85,
+                    brown_hair,
+                );
+                draw_circle(
+                    pos.x - head_size * 0.35,
+                    pos.y - 55.0 * body_scale,
+                    head_size * 0.45,
+                    brown_hair,
+                );
+                draw_circle(
+                    pos.x + head_size * 0.35,
+                    pos.y - 55.0 * body_scale,
+                    head_size * 0.45,
+                    brown_hair,
+                );
+            }
+            _ => {}
+        }
+
+        // NECK
+        draw_rectangle(
+            pos.x - 8.0 * body_scale,
+            pos.y - 22.0 * body_scale,
+            16.0 * body_scale,
+            10.0,
+            Color::new(
+                skin_color.r * 0.95,
+                skin_color.g * 0.95,
+                skin_color.b * 0.95,
+                1.0,
+            ),
+        );
+
+        // TORSO with different colored shirt based on character
+        let shirt_color = match self.selected_character {
+            CharacterId::Bas => Color::new(0.2, 0.35, 0.85, 1.0), // Blue
+            CharacterId::Berkay => Color::new(0.85, 0.4, 0.0, 1.0), // Orange
+            CharacterId::Luca => Color::new(0.3, 0.6, 1.0, 1.0),  // Light Blue
+            CharacterId::Gefferinho => Color::new(0.8, 0.2, 0.2, 1.0), // Red
+            CharacterId::Hadi => Color::new(0.9, 0.7, 0.0, 1.0),  // Gold
+            CharacterId::Nitin => Color::new(0.9, 0.3, 0.0, 1.0), // Fire Orange
+            CharacterId::PalaBaba => Color::new(0.7, 0.0, 0.15, 1.0), // Crimson
+        };
+
+        draw_rectangle(
+            pos.x - 22.0 * body_scale,
+            pos.y - 18.0 * body_scale,
+            44.0 * body_scale,
+            52.0 * body_scale,
+            Color::new(
+                shirt_color.r * 0.7,
+                shirt_color.g * 0.7,
+                shirt_color.b * 0.7,
+                1.0,
+            ),
+        );
+        draw_rectangle(
+            pos.x - 20.0 * body_scale,
+            pos.y - 20.0 * body_scale,
+            40.0 * body_scale,
+            50.0 * body_scale,
+            shirt_color,
+        );
+
+        // PANTS
+        draw_rectangle(
+            pos.x - 15.0 * body_scale,
+            pos.y + 30.0 * body_scale,
+            30.0 * body_scale,
+            40.0 * body_scale,
+            Color::new(0.35, 0.35, 0.45, 1.0),
+        );
+
+        // LEGS
+        draw_rectangle(
+            pos.x - 10.0 * body_scale,
+            pos.y + 70.0 * body_scale,
+            8.0 * body_scale,
+            20.0,
+            Color::new(0.35, 0.35, 0.45, 1.0),
+        );
+        draw_rectangle(
+            pos.x + 2.0 * body_scale,
+            pos.y + 70.0 * body_scale,
+            8.0 * body_scale,
+            20.0,
+            Color::new(0.35, 0.35, 0.45, 1.0),
+        );
+
+        // SHOES
+        draw_ellipse(
+            pos.x - 6.0 * body_scale,
+            pos.y + 91.0 * body_scale,
+            9.0,
+            5.0,
+            0.0,
+            Color::new(0.25, 0.25, 0.25, 1.0),
+        );
+        draw_ellipse(
+            pos.x + 6.0 * body_scale,
+            pos.y + 91.0 * body_scale,
+            9.0,
+            5.0,
+            0.0,
+            Color::new(0.25, 0.25, 0.25, 1.0),
+        );
+
+        // ARMS
+        draw_rectangle(
+            pos.x - 26.0 * body_scale,
+            pos.y - 9.0 * body_scale,
+            8.0 * body_scale,
+            30.0,
+            skin_color,
+        );
+        draw_rectangle(
+            pos.x + 17.0 * body_scale,
+            pos.y - 10.0 * body_scale + arm_offset.y,
+            8.0 * body_scale,
+            30.0,
+            skin_color,
+        );
+
+        // HANDS/FISTS
+        if matches!(
+            state,
+            FighterState::LightAttack
+                | FighterState::HeavyAttack
+                | FighterState::Special
+                | FighterState::Super
+        ) {
+            draw_circle(
+                pos.x + 25.0 + arm_offset.x,
+                pos.y + arm_offset.y,
+                9.0,
+                skin_color,
+            );
+
+            // Render attack slash effect
+            let slash_pos = pos + Vec2::new(25.0 + arm_offset.x, arm_offset.y);
+            let slash_color = match self.selected_character {
+                CharacterId::Bas => Color::new(0.0, 1.0, 0.5, 0.8),
+                CharacterId::Berkay => Color::new(1.0, 0.5, 0.0, 0.8),
+                CharacterId::Luca => Color::new(0.3, 0.6, 1.0, 0.8),
+                CharacterId::Gefferinho => Color::new(1.0, 0.2, 0.2, 0.8),
+                CharacterId::Hadi => Color::new(1.0, 0.8, 0.0, 0.8),
+                CharacterId::Nitin => Color::new(1.0, 0.3, 0.0, 0.8),
+                CharacterId::PalaBaba => Color::new(0.8, 0.0, 0.2, 0.8),
+            };
+            let slash_size = 30.0 + attack_phase * 20.0;
+            draw_circle(
+                slash_pos.x,
+                slash_pos.y,
+                slash_size,
+                Color::new(slash_color.r, slash_color.g, slash_color.b, 0.3),
+            );
+            draw_circle(slash_pos.x, slash_pos.y, slash_size * 0.7, slash_color);
+        } else {
+            draw_circle(
+                pos.x + 17.0 * body_scale,
+                pos.y + 22.0 * body_scale,
+                6.0,
+                skin_color,
+            );
+            draw_circle(
+                pos.x - 25.0 * body_scale,
+                pos.y + 22.0 * body_scale,
+                6.0,
+                skin_color,
+            );
+        }
+
+        // FACE - Eyes
+        draw_circle(
+            pos.x - 9.0,
+            pos.y - 47.0 * body_scale,
+            5.0,
+            Color::new(1.0, 1.0, 1.0, 1.0),
+        );
+        draw_circle(
+            pos.x + 9.0,
+            pos.y - 47.0 * body_scale,
+            5.0,
+            Color::new(1.0, 1.0, 1.0, 1.0),
+        );
+        draw_circle(
+            pos.x - 8.0,
+            pos.y - 46.0 * body_scale,
+            3.5,
+            Color::new(0.15, 0.3, 0.5, 1.0),
+        );
+        draw_circle(
+            pos.x + 8.0,
+            pos.y - 46.0 * body_scale,
+            3.5,
+            Color::new(0.15, 0.3, 0.5, 1.0),
+        );
+
+        // Eyebrows
+        draw_line(
+            pos.x - 12.0,
+            pos.y - 52.0 * body_scale,
+            pos.x - 5.0,
+            pos.y - 53.0 * body_scale,
+            2.0,
+            Color::new(0.3, 0.25, 0.2, 1.0),
+        );
+        draw_line(
+            pos.x + 12.0,
+            pos.y - 52.0 * body_scale,
+            pos.x + 5.0,
+            pos.y - 53.0 * body_scale,
+            2.0,
+            Color::new(0.3, 0.25, 0.2, 1.0),
+        );
+
+        // Mouth
+        let mouth_y = if matches!(state, FighterState::Hitstun) {
+            -36.0
+        } else {
+            -38.0
+        };
+        draw_line(
+            pos.x - 6.0,
+            pos.y + mouth_y * body_scale,
+            pos.x + 6.0,
+            pos.y + mouth_y * body_scale,
+            2.0,
+            Color::new(0.6, 0.3, 0.3, 1.0),
+        );
     }
 
     fn render_attack_slash(&self, pos: Vec2, fighter: &Fighter, phase: f32) {
@@ -3657,13 +5146,7 @@ impl GameplayState {
                 Color::new(0.8, 0.8, 0.8, 1.0)
             };
 
-            draw_text(
-                choice,
-                screen_width() * 0.25,
-                y + 5.0,
-                28.0,
-                text_color,
-            );
+            draw_text(choice, screen_width() * 0.25, y + 5.0, 28.0, text_color);
         }
 
         // Instructions

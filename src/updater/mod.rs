@@ -4,7 +4,8 @@ use std::path::PathBuf;
 
 pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const GITHUB_REPO: &str = "compiledkernel-idk/bas-veeg-arc";
-const UPDATE_CHECK_URL: &str = "https://api.github.com/repos/compiledkernel-idk/bas-veeg-arc/releases/latest";
+const UPDATE_CHECK_URL: &str =
+    "https://api.github.com/repos/compiledkernel-idk/bas-veeg-arc/releases/latest";
 
 #[derive(Debug, Clone)]
 pub struct UpdateInfo {
@@ -85,11 +86,15 @@ impl Updater {
             .map_err(|e| format!("Network error: {}", e))?;
 
         if response.status_code != 200 {
-            return Err(format!("GitHub API returned status {}", response.status_code));
+            return Err(format!(
+                "GitHub API returned status {}",
+                response.status_code
+            ));
         }
 
-        let release: GithubRelease = serde_json::from_str(response.as_str().map_err(|e| e.to_string())?)
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
+        let release: GithubRelease =
+            serde_json::from_str(response.as_str().map_err(|e| e.to_string())?)
+                .map_err(|e| format!("Failed to parse response: {}", e))?;
 
         // Remove 'v' prefix if present
         let latest_version = release.tag_name.trim_start_matches('v').to_string();
@@ -143,11 +148,8 @@ impl Updater {
 
     fn is_newer_version(latest: &str, current: &str) -> bool {
         // Simple version comparison (assumes semantic versioning)
-        let parse_version = |v: &str| -> Vec<u32> {
-            v.split('.')
-                .filter_map(|s| s.parse().ok())
-                .collect()
-        };
+        let parse_version =
+            |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
 
         let latest_parts = parse_version(latest);
         let current_parts = parse_version(current);
@@ -205,7 +207,10 @@ impl Updater {
             .map_err(|e| format!("Download error: {}", e))?;
 
         if response.status_code != 200 {
-            return Err(format!("Download failed with status {}", response.status_code));
+            return Err(format!(
+                "Download failed with status {}",
+                response.status_code
+            ));
         }
 
         // Save to temp file
@@ -264,8 +269,7 @@ impl Updater {
             // Backup current
             let backup_path = format!("{}.old", current_exe.display());
             let _ = fs::remove_file(&backup_path);
-            fs::copy(&current_exe, &backup_path)
-                .map_err(|e| format!("Failed to backup: {}", e))?;
+            fs::copy(&current_exe, &backup_path).map_err(|e| format!("Failed to backup: {}", e))?;
 
             // Replace with new version
             fs::copy(temp_path, &current_exe)
@@ -280,16 +284,12 @@ impl Updater {
 
         #[cfg(target_os = "windows")]
         {
-            std::process::Command::new(current_exe)
-                .spawn()
-                .ok();
+            std::process::Command::new(current_exe).spawn().ok();
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            std::process::Command::new(current_exe)
-                .spawn()
-                .ok();
+            std::process::Command::new(current_exe).spawn().ok();
         }
 
         std::process::exit(0);

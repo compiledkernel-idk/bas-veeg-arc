@@ -7,6 +7,11 @@ pub enum UpgradeId {
     AttackBoost,
     HealthBoost,
     SpeedBoost,
+    CooldownReduction,
+    AbilityDuration,
+    LifeSteal,
+    DamageReduction,
+    CriticalChance,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

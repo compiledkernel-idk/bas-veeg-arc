@@ -12,9 +12,11 @@ pub struct Application {
     state_manager: StateManager,
     camera: GameCamera,
     audio_mixer: AudioMixer,
+    #[allow(dead_code)] // Future use: save/load system
     save_manager: SaveManager,
     accumulator: f64,
     fullscreen: bool,
+    #[allow(dead_code)] // Future use: borderless fullscreen mode
     borderless: bool,
 }
 

@@ -80,7 +80,11 @@ impl State for ControlsState {
         current_y += section_spacing;
 
         // Character Abilities Info Section
-        self.draw_section_header("CHARACTER ABILITIES", current_y, Color::new(1.0, 0.5, 1.0, 1.0));
+        self.draw_section_header(
+            "CHARACTER ABILITIES",
+            current_y,
+            Color::new(1.0, 0.5, 1.0, 1.0),
+        );
         current_y += 40.0;
         draw_text(
             "Each character has a unique ability:",
@@ -90,12 +94,27 @@ impl State for ControlsState {
             LIGHTGRAY,
         );
         current_y += 35.0;
-        current_y = self.draw_ability_info("Berkay", "Special Kebab - Damage & Health Boost", current_y);
+        current_y =
+            self.draw_ability_info("Berkay", "Special Kebab - Damage & Health Boost", current_y);
         current_y = self.draw_ability_info("Luca", "Winter Arc - Massive Damage Boost", current_y);
-        current_y = self.draw_ability_info("Gefferinho", "Maar Mevrouw Rage - Speed, Damage & Health", current_y);
+        current_y = self.draw_ability_info(
+            "Gefferinho",
+            "Maar Mevrouw Rage - Speed, Damage & Health",
+            current_y,
+        );
         current_y = self.draw_ability_info("Bas", "Bas Veeg - AOE Splash Damage", current_y);
-        current_y = self.draw_ability_info("Hadi", "Dubai Emirates - Massive Speed Boost", current_y);
-        current_y = self.draw_ability_info("Nitin", "Barra in je Kont - Sets Enemies on Fire", current_y);
+        current_y =
+            self.draw_ability_info("Hadi", "Dubai Emirates - Massive Speed Boost", current_y);
+        current_y = self.draw_ability_info(
+            "Nitin",
+            "Barra in je Kont - Sets Enemies on Fire",
+            current_y,
+        );
+        current_y = self.draw_ability_info(
+            "Yigit Baba",
+            "Sivas Rage - ULTIMATE: Damage, Speed & Health (30s CD)",
+            current_y,
+        );
 
         // Footer
         let footer_y = screen_height() - 60.0;

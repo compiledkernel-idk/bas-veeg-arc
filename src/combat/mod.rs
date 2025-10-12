@@ -7,11 +7,8 @@ pub mod meter;
 pub mod supers;
 pub mod weapons;
 
-pub use ai::{AIBehavior, AIController};
-pub use combos::{Combo, ComboManager};
-pub use hitbox::{HitType, Hitbox};
-pub use hurtbox::{Hurtbox, HurtboxType};
-pub use inputs::{InputAction, InputManager, InputState};
-pub use meter::{MeterGainType, MeterManager};
-pub use supers::{SuperManager, SuperMove};
-pub use weapons::{Weapon, WeaponType};
+// Only export what's actively used
+pub use hitbox::Hitbox;
+pub use hurtbox::Hurtbox;
+pub use inputs::InputManager;
+// Other modules available but not re-exported to reduce unused warnings

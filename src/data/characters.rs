@@ -8,6 +8,7 @@ pub enum CharacterId {
     Bas,
     Hadi,
     Nitin,
+    PalaBaba,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -16,7 +17,7 @@ pub enum AbilityEffect {
     HealthBoost(f32),
     SpeedBoost(f32),
     SplashDamage(f32, f32), // damage, radius
-    FireDamage(f32, f32), // damage per second, duration
+    FireDamage(f32, f32),   // damage per second, duration
 }
 
 pub struct Character {
@@ -30,33 +31,45 @@ pub struct Character {
 }
 
 const BERKAY_EFFECTS: &[AbilityEffect] = &[
-    AbilityEffect::DamageBoost(1.5),
-    AbilityEffect::HealthBoost(20.0),
+    AbilityEffect::DamageBoost(2.2), // Buffed from 1.5
+    AbilityEffect::HealthBoost(35.0), // Buffed from 20.0
 ];
 
-const LUCA_EFFECTS: &[AbilityEffect] = &[AbilityEffect::DamageBoost(2.0)];
+const LUCA_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::DamageBoost(2.8), // Buffed from 2.0
+    AbilityEffect::HealthBoost(15.0), // Added health boost
+];
 
 const GEFFERINHO_EFFECTS: &[AbilityEffect] = &[
-    AbilityEffect::SpeedBoost(1.5),
-    AbilityEffect::DamageBoost(1.3),
-    AbilityEffect::HealthBoost(15.0),
+    AbilityEffect::SpeedBoost(2.0), // Buffed from 1.5
+    AbilityEffect::DamageBoost(2.0), // Buffed from 1.3
+    AbilityEffect::HealthBoost(25.0), // Buffed from 15.0
 ];
 
-const BAS_EFFECTS: &[AbilityEffect] = &[AbilityEffect::SplashDamage(30.0, 150.0)];
+const BAS_EFFECTS: &[AbilityEffect] = &[AbilityEffect::SplashDamage(45.0, 180.0)]; // Buffed damage and radius
 
-const HADI_EFFECTS: &[AbilityEffect] = &[AbilityEffect::SpeedBoost(2.5)];
+const HADI_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::SpeedBoost(3.2), // Buffed from 2.5
+    AbilityEffect::DamageBoost(1.5), // Added moderate damage boost
+];
 
-const NITIN_EFFECTS: &[AbilityEffect] = &[AbilityEffect::FireDamage(5.0, 5.0)];
+const NITIN_EFFECTS: &[AbilityEffect] = &[AbilityEffect::FireDamage(8.0, 6.0)]; // Buffed from 5.0 DPS and 5.0s duration
 
-pub const CHARACTERS: [Character; 6] = [
+const PALA_BABA_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::DamageBoost(3.0),
+    AbilityEffect::SpeedBoost(3.0),
+    AbilityEffect::HealthBoost(30.0),
+];
+
+pub const CHARACTERS: [Character; 7] = [
     Character {
         id: CharacterId::Berkay,
         name: "Berkay",
         ability_name: "Special Kebab",
         voice_line: "ik kan niet stoppen!",
         effects: BERKAY_EFFECTS,
-        duration: 5.0,
-        cooldown: 10.0,
+        duration: 6.0, // Increased from 5.0
+        cooldown: 12.0, // Increased from 10.0
     },
     Character {
         id: CharacterId::Luca,
@@ -65,7 +78,7 @@ pub const CHARACTERS: [Character; 6] = [
         voice_line: "nee nu ben ik klaar ik ga in mijn winter arc",
         effects: LUCA_EFFECTS,
         duration: 5.0,
-        cooldown: 10.0,
+        cooldown: 12.0, // Increased from 10.0 due to buff
     },
     Character {
         id: CharacterId::Gefferinho,
@@ -73,8 +86,8 @@ pub const CHARACTERS: [Character; 6] = [
         ability_name: "Maar Mevrouw Rage",
         voice_line: "maar mevouw wat doe je",
         effects: GEFFERINHO_EFFECTS,
-        duration: 5.0,
-        cooldown: 10.0,
+        duration: 6.0, // Increased from 5.0
+        cooldown: 13.0, // Increased from 10.0
     },
     Character {
         id: CharacterId::Bas,
@@ -82,8 +95,8 @@ pub const CHARACTERS: [Character; 6] = [
         ability_name: "Bas Veeg",
         voice_line: "BAS VEEG!",
         effects: BAS_EFFECTS,
-        duration: 5.0,
-        cooldown: 10.0,
+        duration: 0.1, // Instant AOE burst
+        cooldown: 11.0, // Increased from 10.0
     },
     Character {
         id: CharacterId::Hadi,
@@ -91,8 +104,8 @@ pub const CHARACTERS: [Character; 6] = [
         ability_name: "Dubai Emirates",
         voice_line: "Dubai Emirates!",
         effects: HADI_EFFECTS,
-        duration: 5.0,
-        cooldown: 10.0,
+        duration: 6.0, // Increased from 5.0
+        cooldown: 12.0, // Increased from 10.0
     },
     Character {
         id: CharacterId::Nitin,
@@ -100,14 +113,39 @@ pub const CHARACTERS: [Character; 6] = [
         ability_name: "Barra in je Kont",
         voice_line: "Barra in je kont!",
         effects: NITIN_EFFECTS,
-        duration: 5.0,
-        cooldown: 10.0,
+        duration: 1.0, // Apply DOT effect
+        cooldown: 11.0, // Increased from 10.0
+    },
+    Character {
+        id: CharacterId::PalaBaba,
+        name: "Yigit Baba",
+        ability_name: "Sivas Rage",
+        voice_line: "TURKIYEEEE",
+        effects: PALA_BABA_EFFECTS,
+        duration: 10.0,
+        cooldown: 30.0,
     },
 ];
 
 impl Character {
     pub fn get_by_id(id: CharacterId) -> &'static Character {
         &CHARACTERS[id as usize]
+    }
+}
+
+impl CharacterId {
+    /// Convert CharacterId to ECS CharacterType for use in game entities
+    pub fn to_character_type(self) -> crate::ecs::CharacterType {
+        use crate::ecs::CharacterType as CT;
+        match self {
+            CharacterId::Berkay => CT::Berkay,
+            CharacterId::Luca => CT::Luca,
+            CharacterId::Gefferinho => CT::Gefferinho,
+            CharacterId::Bas => CT::Bas,
+            CharacterId::Hadi => CT::Hadi,
+            CharacterId::Nitin => CT::Nitin,
+            CharacterId::PalaBaba => CT::YigitBaba,
+        }
     }
 }
 

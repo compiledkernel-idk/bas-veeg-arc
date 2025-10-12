@@ -1,5 +1,5 @@
 use crate::states::State;
-use crate::updater::{Updater, UpdateStatus};
+use crate::updater::{UpdateStatus, Updater};
 use macroquad::prelude::*;
 
 pub struct BootState {
@@ -245,10 +245,7 @@ impl BootState {
 
         // Version info
         if let Some(info) = &self.updater.info {
-            let version_text = format!(
-                "New version {} is available!",
-                info.latest_version
-            );
+            let version_text = format!("New version {} is available!", info.latest_version);
             let version_dims = measure_text(&version_text, None, 24, 1.0);
             draw_text(
                 &version_text,
@@ -309,13 +306,7 @@ impl BootState {
                     Color::new(0.4, 0.6, 1.0, 1.0),
                 );
 
-                draw_text(
-                    "▶",
-                    box_x + 50.0,
-                    y,
-                    28.0,
-                    Color::new(1.0, 0.8, 0.0, 1.0),
-                );
+                draw_text("▶", box_x + 50.0, y, 28.0, Color::new(1.0, 0.8, 0.0, 1.0));
             }
 
             let text_color = if is_selected {
@@ -324,13 +315,7 @@ impl BootState {
                 Color::new(0.8, 0.8, 0.8, 1.0)
             };
 
-            draw_text(
-                option,
-                box_x + 90.0,
-                y,
-                24.0,
-                text_color,
-            );
+            draw_text(option, box_x + 90.0, y, 24.0, text_color);
         }
 
         // Instructions
@@ -379,14 +364,7 @@ impl BootState {
             Color::new(0.2, 0.8, 0.2, 1.0),
         );
 
-        draw_rectangle_lines(
-            bar_x,
-            bar_y,
-            bar_width,
-            bar_height,
-            2.0,
-            WHITE,
-        );
+        draw_rectangle_lines(bar_x, bar_y, bar_width, bar_height, 2.0, WHITE);
 
         let percent = format!("{}%", self.updater.download_progress as u32);
         let percent_dims = measure_text(&percent, None, 20, 1.0);

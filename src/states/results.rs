@@ -1,4 +1,4 @@
-use crate::states::State;
+use crate::states::{State, StateType};
 use macroquad::prelude::*;
 
 pub struct ResultsState {
@@ -8,17 +8,34 @@ pub struct ResultsState {
     combo_bonus: u32,
     total_score: u32,
     display_timer: f32,
+    transition_to: Option<StateType>,
+    waves_completed: usize,
+    enemies_defeated: u32,
 }
 
 impl ResultsState {
     pub fn new() -> Self {
+        Self::with_data("PLAYER".to_string(), 0, 0, 0)
+    }
+
+    pub fn with_data(winner: String, waves_completed: usize, enemies_defeated: u32, time_survived: u32) -> Self {
+        // Calculate scores based on performance
+        let base_score = waves_completed as u32 * 1000 + enemies_defeated * 100;
+        let time_bonus = time_survived * 10;
+        let wave_bonus = if waves_completed >= 10 { 5000 } else { waves_completed as u32 * 300 };
+        let combo_bonus = wave_bonus; // Simplified combo calculation
+        let total_score = base_score + time_bonus + combo_bonus;
+
         Self {
-            winner: "BAS".to_string(),
-            score: 10000,
-            time_bonus: 5000,
-            combo_bonus: 2500,
-            total_score: 17500,
+            winner,
+            score: base_score,
+            time_bonus,
+            combo_bonus,
+            total_score,
             display_timer: 0.0,
+            transition_to: None,
+            waves_completed,
+            enemies_defeated,
         }
     }
 }
@@ -27,6 +44,7 @@ impl State for ResultsState {
     fn enter(&mut self) {
         self.display_timer = 0.0;
         self.total_score = self.score + self.time_bonus + self.combo_bonus;
+        self.transition_to = None;
     }
 
     fn exit(&mut self) {}
@@ -91,10 +109,27 @@ impl State for ResultsState {
         }
 
         if self.display_timer > 3.0 {
+            // Show stats
+            let stats_y = 550.0;
+            draw_text(
+                &format!("Waves Completed: {}", self.waves_completed),
+                300.0,
+                stats_y,
+                24.0,
+                Color::new(0.7, 0.9, 1.0, 1.0),
+            );
+            draw_text(
+                &format!("Enemies Defeated: {}", self.enemies_defeated),
+                300.0,
+                stats_y + 35.0,
+                24.0,
+                Color::new(0.7, 0.9, 1.0, 1.0),
+            );
+
             draw_text(
                 "Press SPACE to continue",
                 screen_width() * 0.5 - 150.0,
-                600.0,
+                650.0,
                 20.0,
                 Color::new(1.0, 1.0, 1.0, 0.6),
             );
@@ -103,7 +138,13 @@ impl State for ResultsState {
 
     fn handle_input(&mut self) {
         if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
-            if self.display_timer > 3.0 {}
+            if self.display_timer > 3.0 {
+                self.transition_to = Some(StateType::Menu);
+            }
         }
+    }
+
+    fn should_transition(&self) -> Option<StateType> {
+        self.transition_to
     }
 }

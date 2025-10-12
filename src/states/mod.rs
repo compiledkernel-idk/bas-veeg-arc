@@ -115,7 +115,8 @@ impl StateManager {
             self.pending_transitions.push(StateTransition::Pop);
         } else {
             // If we're at the base state (menu), replace with menu to ensure we're at menu
-            self.pending_transitions.push(StateTransition::Replace(StateType::Menu));
+            self.pending_transitions
+                .push(StateTransition::Replace(StateType::Menu));
         }
     }
 

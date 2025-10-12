@@ -1,5 +1,3 @@
-use macroquad::prelude::*;
-
 mod app;
 mod audio;
 mod combat;
@@ -8,8 +6,8 @@ mod ecs;
 mod render;
 mod states;
 mod ui;
-mod util;
 mod updater;
+mod util;
 
 #[macroquad::main("Bas Veeg Arc")]
 async fn main() {

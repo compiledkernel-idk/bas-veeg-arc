@@ -117,67 +117,72 @@ impl System for CombatSystem {
             .collect();
 
         for attacker in attackers {
-            if let Some(hitbox_comp) = world.get_component::<HitboxComponent>(attacker).cloned() {
+            // Extract only the data we need to avoid double cloning
+            let (mut hitbox_offset, hitbox_size) = {
+                if let Some(hitbox_comp) = world.get_component::<HitboxComponent>(attacker) {
+                    (hitbox_comp.hitbox.offset, hitbox_comp.hitbox.size)
+                } else {
+                    continue;
+                }
+            };
+
+            let attacker_pos = {
                 if let Some(attacker_transform) = world.get_component::<Transform>(attacker) {
-                    let mut hitbox = hitbox_comp.hitbox.clone();
-                    let attacker_pos = attacker_transform.position;
+                    attacker_transform.position
+                } else {
+                    continue;
+                }
+            };
 
-                    let attacker_team =
-                        if let Some(fighter) = world.get_component::<Fighter>(attacker) {
-                            if fighter.facing < 0.0 {
-                                hitbox.offset.x = -hitbox.offset.x;
-                            }
-                            Some(fighter.team)
-                        } else {
-                            None
-                        };
+            let attacker_team = {
+                if let Some(fighter) = world.get_component::<Fighter>(attacker) {
+                    if fighter.facing < 0.0 {
+                        hitbox_offset.x = -hitbox_offset.x;
+                    }
+                    Some(fighter.team)
+                } else {
+                    None
+                }
+            };
 
-                    for defender in &defenders {
-                        if attacker.as_u32() == defender.as_u32() {
-                            continue;
-                        }
+            for defender in &defenders {
+                if attacker.as_u32() == defender.as_u32() {
+                    continue;
+                }
 
-                        if let (Some(att_team), Some(def_team)) = (
-                            attacker_team,
-                            world.get_component::<Fighter>(*defender).map(|f| f.team),
+                if let (Some(att_team), Some(def_team)) = (
+                    attacker_team,
+                    world.get_component::<Fighter>(*defender).map(|f| f.team),
+                ) {
+                    if att_team.is_allied(def_team) {
+                        continue;
+                    }
+                }
+
+                if let Some(hitbox_mut) = world.get_component_mut::<HitboxComponent>(attacker) {
+                    if hitbox_mut.hits_registered.contains(&defender.as_u32()) {
+                        continue;
+                    }
+                }
+
+                if let Some(hurtbox_comp) = world.get_component::<HurtboxComponent>(*defender) {
+                    if let Some(defender_transform) = world.get_component::<Transform>(*defender) {
+                        let hurtbox = &hurtbox_comp.hurtbox;
+                        let defender_pos = defender_transform.position;
+
+                        if self.check_collision(
+                            attacker_pos + hitbox_offset,
+                            hitbox_size,
+                            defender_pos + hurtbox.offset,
+                            hurtbox.size,
                         ) {
-                            if att_team.is_allied(def_team) {
-                                continue;
-                            }
-                        }
-
-                        if let Some(hitbox_mut) =
-                            world.get_component_mut::<HitboxComponent>(attacker)
-                        {
-                            if hitbox_mut.hits_registered.contains(&defender.as_u32()) {
-                                continue;
-                            }
-                        }
-
-                        if let Some(hurtbox_comp) =
-                            world.get_component::<HurtboxComponent>(*defender)
-                        {
-                            if let Some(defender_transform) =
-                                world.get_component::<Transform>(*defender)
+                            if let Some(hitbox_mut) =
+                                world.get_component_mut::<HitboxComponent>(attacker)
                             {
-                                let hurtbox = &hurtbox_comp.hurtbox;
-                                let defender_pos = defender_transform.position;
-
-                                if self.check_collision(
-                                    attacker_pos + hitbox.offset,
-                                    hitbox.size,
-                                    defender_pos + hurtbox.offset,
-                                    hurtbox.size,
-                                ) {
-                                    if let Some(hitbox_mut) =
-                                        world.get_component_mut::<HitboxComponent>(attacker)
-                                    {
-                                        hitbox_mut.hits_registered.push(defender.as_u32());
-                                    }
-                                    self.hit_registry
-                                        .push((attacker.as_u32(), defender.as_u32()));
-                                }
+                                hitbox_mut.hits_registered.push(defender.as_u32());
                             }
+                            self.hit_registry
+                                .push((attacker.as_u32(), defender.as_u32()));
                         }
                     }
                 }
@@ -234,14 +239,17 @@ impl CombatSystem {
             if fighter.character_type == CharacterType::Bas {
                 damage *= self.player_attack_multiplier;
             } else if fighter.character_type == CharacterType::Bastiaan {
-                // BIG BOSS Bastiaan does strong damage
-                damage = 12.0;
+                // BIG BOSS Bastiaan does very strong damage
+                damage = 18.0;
+            } else if fighter.character_type == CharacterType::KeizerBomTaha {
+                // Keizer Bom Taha does strong damage
+                damage = 15.0;
             } else if fighter.team == Team::Enemy {
                 // Regular enemies do moderate damage
                 damage = 6.0;
             } else if fighter.team == Team::Ally {
-                // Ally attacks do strong damage
-                damage = 12.0;
+                // Ally attacks do moderate damage (reduced from 12.0)
+                damage = 8.0;
             }
         }
 
@@ -556,7 +564,7 @@ impl AISystem {
             AIBehavior::Aggressive => (110.0, 35.0),
             AIBehavior::Defensive => (170.0, 90.0),
             AIBehavior::Balanced => (140.0, 60.0),
-            AIBehavior::Support => (130.0, 45.0),
+            AIBehavior::Support => (120.0, 50.0),  // Approach at 120, retreat at 50 - more cautious positioning
             AIBehavior::Evasive => (200.0, 110.0),
             AIBehavior::Boss(_) => (150.0, 50.0),
         }
@@ -616,21 +624,27 @@ impl AISystem {
                 }
             }
             AIBehavior::Support => {
-                if distance < 90.0 {
-                    if roll < 0.5 {
+                // Support AI is more conservative - waits for good opportunities
+                if distance < 75.0 {
+                    // Close range - prefer quick attacks
+                    if roll < 0.6 {
                         Some(FighterState::LightAttack)
-                    } else if roll < 0.8 {
+                    } else if roll < 0.85 {
                         Some(FighterState::HeavyAttack)
                     } else {
+                        // Occasional special at close range
                         Some(FighterState::Special)
                     }
-                } else if distance < 180.0 {
+                } else if distance < 140.0 {
+                    // Mid range - more cautious, mostly light attacks
                     if roll < 0.7 {
                         Some(FighterState::LightAttack)
                     } else {
+                        // Sometimes heavy attack
                         Some(FighterState::HeavyAttack)
                     }
                 } else {
+                    // Far range - don't attack, let them approach
                     None
                 }
             }

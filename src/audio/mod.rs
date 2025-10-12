@@ -3,5 +3,4 @@ pub mod music;
 pub mod sfx;
 
 pub use mixer::AudioMixer;
-pub use music::{MusicManager, MusicStem};
-pub use sfx::{ImpactType, SFXManager};
+// MusicManager, MusicStem, ImpactType, SFXManager not yet used

@@ -4,25 +4,31 @@ use macroquad::prelude::*;
 
 pub struct AudioMixer {
     channels: Vec<AudioChannel>,
+    #[allow(dead_code)] // Future use: preloaded sound effects
     sound_library: AHashMap<String, Sound>,
+    #[allow(dead_code)] // Future use: preloaded music tracks
     music_tracks: AHashMap<String, Sound>,
     master_volume: f32,
     sfx_volume: f32,
     music_volume: f32,
+    #[allow(dead_code)] // Used in play_music method
     current_music: Option<String>,
     ducking: DuckingState,
 }
 
 #[derive(Clone)]
 pub struct AudioChannel {
+    #[allow(dead_code)] // Future use: channel identification
     pub name: String,
     pub volume: f32,
+    #[allow(dead_code)] // Future use: stereo panning
     pub pan: f32,
     pub playing: Option<PlayingSound>,
 }
 
 #[derive(Clone)]
 pub struct PlayingSound {
+    #[allow(dead_code)] // Future use: sound identification
     pub sound_id: String,
     pub start_time: f64,
     pub looping: bool,

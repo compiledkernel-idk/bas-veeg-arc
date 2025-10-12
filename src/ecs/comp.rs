@@ -62,17 +62,22 @@ impl Component for Fighter {}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum CharacterType {
+    // Playable characters
     Bas,
     Berkay,
+    Gefferinho,
     Hadi,
     Luca,
     Nitin,
+    YigitBaba,
+    // NPCs and enemies
     Wolters,
     PrefectA,
     PrefectB,
     Chef,
     Librarian,
     Coach,
+    // Bosses
     Bastiaan,
     KeizerBomTaha,
 }
