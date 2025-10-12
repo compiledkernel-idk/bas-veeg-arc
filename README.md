@@ -72,4 +72,4 @@ cargo run --release
 
 ## License
 
-This project is a personal game project.
+MIT
