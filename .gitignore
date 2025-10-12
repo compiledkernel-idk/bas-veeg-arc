@@ -28,3 +28,7 @@ desktop.ini
 dist/
 releases/
 
+# dist scripts
+installer.iss
+bas-veeg-arc-installer.iss
+
