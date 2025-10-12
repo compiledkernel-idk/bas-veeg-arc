@@ -68,7 +68,7 @@ impl State for ControlsState {
         self.draw_section_header("SHOP", current_y, Color::new(1.0, 0.9, 0.4, 1.0));
         current_y += 40.0;
         current_y = self.draw_keybind("B", "Open/Close Shop", current_y);
-        current_y = self.draw_keybind("1, 2, 3", "Buy Upgrade", current_y);
+        current_y = self.draw_keybind("1-8", "Buy Upgrade", current_y);
         current_y += section_spacing;
 
         // Menu Section

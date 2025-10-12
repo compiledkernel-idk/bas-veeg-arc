@@ -1466,7 +1466,7 @@ impl State for GameplayState {
         if is_key_pressed(KeyCode::B) {
             self.shop_open = !self.shop_open;
             if self.shop_open {
-                self.set_shop_feedback("Shop opened — press 1-3 to buy upgrades");
+                self.set_shop_feedback("Shop opened — press 1-8 to buy upgrades");
             }
         }
 
@@ -2023,6 +2023,11 @@ impl GameplayState {
                 0 => KeyCode::Key1,
                 1 => KeyCode::Key2,
                 2 => KeyCode::Key3,
+                3 => KeyCode::Key4,
+                4 => KeyCode::Key5,
+                5 => KeyCode::Key6,
+                6 => KeyCode::Key7,
+                7 => KeyCode::Key8,
                 _ => continue,
             };
 
@@ -2140,7 +2145,7 @@ impl GameplayState {
             );
         }
 
-        let footer = "Press 1, 2, 3 to buy upgrades • B to close";
+        let footer = "Press 1-8 to buy upgrades • B to close";
         let footer_dims = measure_text(footer, None, 22, 1.0);
         draw_text(
             footer,

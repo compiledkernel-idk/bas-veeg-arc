@@ -1,6 +1,6 @@
 # Bas Veeg Arc
 
-**Version 0.2.0** - A fast-paced beat 'em up game built with Rust and Macroquad
+**Version 0.3.0** - A fast-paced beat 'em up game built with Rust and Macroquad
 
 ## About
 
@@ -28,20 +28,23 @@ Bas Veeg Arc is an action-packed fighting game where you battle through waves of
 ## Controls
 
 ### Movement
+
 - **W/Up Arrow** - Move Up
 - **S/Down Arrow** - Move Down
 - **A/Left Arrow** - Move Left
 - **D/Right Arrow** - Move Right
 
 ### Combat
+
 - **J** - Light Attack
 - **K** - Heavy Attack
 - **L** - Special Attack
 - **E** - Activate Character Ability
 
 ### Shop & Menu
+
 - **B** - Open/Close Shop
-- **1, 2, 3** - Buy Upgrades
+- **1-8** - Buy Upgrades
 - **Enter/J** - Select
 - **Space** - Toggle Details (Character Select)
 - **Escape** - Pause / Back
@@ -49,15 +52,18 @@ Bas Veeg Arc is an action-packed fighting game where you battle through waves of
 ## Building & Running
 
 ### Prerequisites
+
 - Rust 1.70 or later
 - Cargo
 
 ### Build from Source
+
 ```bash
 cargo build --release
 ```
 
 ### Run the Game
+
 ```bash
 cargo run --release
 ```
