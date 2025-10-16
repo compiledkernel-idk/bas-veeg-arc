@@ -35,4 +35,7 @@ bas-veeg-arc-installer.iss
 BasVeegArc.AppDir/
 BasVeegArcSetup.exe
 installer.ico
-
+squashfs-root/
+BasVeegArc-x86_64.AppImage
+appimagetool-x86_64.AppImage
+installer.ico
