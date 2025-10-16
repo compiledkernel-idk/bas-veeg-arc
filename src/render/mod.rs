@@ -1,7 +1,21 @@
 pub mod atlas;
 pub mod camera;
+// pub mod character_renderer;
+pub mod graphics_enhancement;
 pub mod post;
+pub mod screen_effects;
+// pub mod shader_system;
+// pub mod skeletal_animation;
+// pub mod sprite_renderer;
+pub mod texture_manager;
 pub mod vfx;
 
 pub use camera::GameCamera;
-// Other render systems available but not yet used
+// pub use character_renderer::CharacterRenderer;
+pub use graphics_enhancement::{GraphicsEnhancement, EnhancedSprite};
+pub use screen_effects::ScreenEffects;
+// pub use shader_system::ShaderSystem;
+// pub use skeletal_animation::SkeletalAnimationSystem;
+// pub use sprite_renderer::SpriteRenderer;
+pub use texture_manager::TextureManager;
+pub use vfx::VFXManager;

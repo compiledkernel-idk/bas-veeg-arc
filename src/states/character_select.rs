@@ -9,6 +9,7 @@ pub struct CharacterSelectState {
     show_details: bool,
     animation_time: f32,
     hover_pulse: f32,
+    chars_per_row: usize, // Track the current grid layout
 }
 
 impl CharacterSelectState {
@@ -20,6 +21,7 @@ impl CharacterSelectState {
             show_details: true, // Always show details now
             animation_time: 0.0,
             hover_pulse: 0.0,
+            chars_per_row: 5, // Default to 5
         }
     }
 
@@ -36,6 +38,10 @@ impl CharacterSelectState {
             CharacterId::Hadi => Color::new(1.0, 0.8, 0.0, 1.0),   // Gold
             CharacterId::Nitin => Color::new(1.0, 0.3, 0.0, 1.0),  // Fire Orange
             CharacterId::PalaBaba => Color::new(0.8, 0.0, 0.2, 1.0), // Crimson Red (Turkish flag inspired)
+            CharacterId::Fufinho => Color::new(0.9, 0.0, 0.9, 1.0), // Purple
+            CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 1.0), // Brown (lahmacun color)
+            CharacterId::Jad => Color::new(1.0, 0.0, 0.0, 1.0), // Red (KFC rage)
+            CharacterId::Umut => Color::new(0.1, 0.8, 0.2, 1.0), // Green (Terraria theme)
         }
     }
 
@@ -48,6 +54,10 @@ impl CharacterSelectState {
             CharacterId::Hadi => "Lightning fast from Dubai Emirates. Speed demon who strikes before you can react.",
             CharacterId::Nitin => "Sets the competition ablaze. DOT specialist with burning passion.",
             CharacterId::PalaBaba => "THE ULTIMATE FIGHTER. Turkish powerhouse with unmatched raw power.",
+            CharacterId::Fufinho => "Fufu master with projectile prowess. Throws devastating fufu bombs that deal massive damage.",
+            CharacterId::EfeAbi => "Lahmacun-powered warrior. Gains incredible speed and power from Turkish street food.",
+            CharacterId::Jad => "KFC rage incarnate. When triggered, unleashes chicken-fueled fury for massive boosts.",
+            CharacterId::Umut => "Master builder from Terraria. Enters his building arc for serious damage boosts.",
         }
     }
 
@@ -89,6 +99,10 @@ impl CharacterSelectState {
             CharacterId::Nitin => (Color::new(0.65, 0.45, 0.30, 1.0), 0.18, 1.0, 1.0), // Brown skin
             CharacterId::Luca => (Color::new(1.0, 0.85, 0.70, 1.0), 0.18, 1.0, 1.0),  // Normal
             CharacterId::PalaBaba => (Color::new(1.0, 0.90, 0.80, 1.0), 0.18, 1.0, 1.0), // White skin
+            CharacterId::Fufinho => (Color::new(0.45, 0.30, 0.20, 1.0), 0.18, 1.0, 1.1), // Dark brown skin
+            CharacterId::EfeAbi => (Color::new(0.90, 0.75, 0.60, 1.0), 0.18, 1.1, 1.0), // Light brown skin
+            CharacterId::Jad => (Color::new(1.0, 0.85, 0.70, 1.0), 0.18, 1.2, 1.0), // Normal skin, wider build
+            CharacterId::Umut => (Color::new(1.0, 0.85, 0.70, 1.0), 0.18, 1.0, 1.0), // Normal skin
         };
 
         // Head (skin color)
@@ -183,6 +197,60 @@ impl CharacterSelectState {
                     draw_circle(hair_x, hair_y, head_radius * 0.28, brown_hair);
                 }
             }
+            CharacterId::Fufinho => {
+                // Tight afro hair
+                for i in 0..12 {
+                    let angle = (i as f32 / 12.0) * std::f32::consts::PI * 2.0;
+                    let curl_x = x + angle.cos() * head_radius * 0.85;
+                    let curl_y = figure_y - head_radius * 0.2 + angle.sin() * head_radius * 0.85;
+                    draw_circle(curl_x, curl_y, head_radius * 0.25, black_hair);
+                }
+                // Add more density
+                draw_circle(x, figure_y - head_radius * 0.4, head_radius * 0.9, black_hair);
+            }
+            CharacterId::EfeAbi => {
+                // Styled wavy hair
+                for i in 0..6 {
+                    let angle = (i as f32 / 6.0) * std::f32::consts::PI;
+                    let wave_x = x - head_radius * 0.7 + angle.cos() * head_radius * 1.4;
+                    let wave_y = figure_y - head_radius * 0.6 + (angle * 2.0).sin() * head_radius * 0.3;
+                    draw_circle(wave_x, wave_y, head_radius * 0.32, brown_hair);
+                }
+            }
+            CharacterId::Jad => {
+                // Spiky red hair (matching KFC rage theme)
+                let red_hair = Color::new(0.8, 0.2, 0.1, 1.0);
+                // Draw spikes
+                for i in 0..7 {
+                    let angle = -std::f32::consts::PI * 0.7 + (i as f32 / 6.0) * std::f32::consts::PI * 1.4;
+                    let spike_x = x + angle.cos() * head_radius * 0.9;
+                    let spike_y = figure_y - head_radius * 0.5 + angle.sin() * head_radius * 0.7;
+                    draw_triangle(
+                        vec2(spike_x, spike_y - head_radius * 0.4),
+                        vec2(spike_x - head_radius * 0.15, spike_y),
+                        vec2(spike_x + head_radius * 0.15, spike_y),
+                        red_hair,
+                    );
+                }
+            }
+            CharacterId::Umut => {
+                // Short brown hair with green highlights (Terraria theme)
+                let green_tint = Color::new(0.2, 0.4, 0.1, 1.0);
+                // Base hair
+                draw_circle(
+                    x,
+                    figure_y - head_radius * 0.35,
+                    head_radius * 0.85,
+                    brown_hair,
+                );
+                // Green highlights on top
+                for i in 0..4 {
+                    let angle = -std::f32::consts::PI * 0.5 + (i as f32 / 3.0) * std::f32::consts::PI;
+                    let highlight_x = x + angle.cos() * head_radius * 0.6;
+                    let highlight_y = figure_y - head_radius * 0.6 + angle.sin() * head_radius * 0.3;
+                    draw_circle(highlight_x, highlight_y, head_radius * 0.2, green_tint);
+                }
+            }
         }
 
         // Body (with outfit color)
@@ -257,6 +325,9 @@ impl State for CharacterSelectState {
     fn fixed_update(&mut self, _dt: f64) {}
 
     fn render(&mut self, _interpolation: f32) {
+        // Calculate scale factor based on screen size
+        let scale_factor = (screen_width() / 1920.0).min(screen_height() / 1080.0).max(0.5).min(1.2);
+
         // Gradient background
         for i in 0..30 {
             let y = i as f32 * screen_height() / 30.0;
@@ -272,46 +343,47 @@ impl State for CharacterSelectState {
             let x = (i as f32 * screen_width() / 20.0 + offset) % screen_width();
             let y = (self.animation_time * 20.0 + i as f32 * 40.0) % screen_height();
             let alpha = 0.3 + ((self.animation_time * 2.0 + i as f32).sin() * 0.2);
-            draw_circle(x, y, 3.0, Color::new(1.0, 1.0, 1.0, alpha as f32));
+            draw_circle(x, y, 3.0 * scale_factor, Color::new(1.0, 1.0, 1.0, alpha as f32));
         }
 
-        // Title with glow
+        // Title with glow - scaled
         let title = "SELECT YOUR FIGHTER";
-        let title_size = 70.0;
+        let title_size = (50.0 * scale_factor).min(70.0).max(30.0);
         let title_dims = measure_text(title, None, title_size as u16, 1.0);
         let title_x = screen_width() * 0.5 - title_dims.width * 0.5;
+        let title_y = 60.0 * scale_factor;
 
         // Title glow
-        for offset in [-3.0, -2.0, -1.0, 1.0, 2.0, 3.0] {
+        for offset in [-2.0, -1.0, 1.0, 2.0].iter().map(|o| o * scale_factor) {
             draw_text(
                 title,
                 title_x + offset,
-                75.0,
+                title_y,
                 title_size,
                 Color::new(1.0, 0.8, 0.0, 0.3),
             );
             draw_text(
                 title,
                 title_x,
-                75.0 + offset,
+                title_y + offset,
                 title_size,
                 Color::new(1.0, 0.8, 0.0, 0.3),
             );
         }
-        draw_text(title, title_x, 75.0, title_size, GOLD);
+        draw_text(title, title_x, title_y, title_size, GOLD);
 
-        // Character cards - 3 per row, 2 rows
-        let chars_per_row = 3;
-        let card_width = 320.0;
-        let card_height = 340.0;
-        let spacing = 40.0;
+        // Character cards - dynamic layout based on screen size
+        self.chars_per_row = if screen_width() < 1400.0 { 4 } else { 5 };
+        let card_width = (200.0 * scale_factor).min(250.0).max(160.0);
+        let card_height = (220.0 * scale_factor).min(280.0).max(180.0);
+        let spacing = (25.0 * scale_factor).min(30.0).max(15.0);
         let start_x =
-            screen_width() * 0.5 - (chars_per_row as f32 * (card_width + spacing) - spacing) * 0.5;
-        let start_y = 140.0;
+            screen_width() * 0.5 - (self.chars_per_row as f32 * (card_width + spacing) - spacing) * 0.5;
+        let start_y = title_y + 60.0 * scale_factor;
 
         for (i, character) in CHARACTERS.iter().enumerate() {
-            let row = i / chars_per_row;
-            let col = i % chars_per_row;
+            let row = i / self.chars_per_row;
+            let col = i % self.chars_per_row;
             let x = start_x + col as f32 * (card_width + spacing);
             let y = start_y + row as f32 * (card_height + spacing);
 
@@ -415,19 +487,19 @@ impl State for CharacterSelectState {
                 );
             }
 
-            // Character portrait
+            // Character portrait - scaled
             self.draw_character_portrait(
                 x + card_width * 0.5,
-                card_y + 50.0,
-                100.0,
+                card_y + 35.0 * scale_factor,
+                60.0 * scale_factor,
                 character,
                 is_selected,
             );
 
-            // Character name
-            let name_size = 36.0;
+            // Character name - scaled
+            let name_size = (24.0 * scale_factor).min(32.0).max(18.0);
             let name_dims = measure_text(character.name, None, name_size as u16, 1.0);
-            let name_y = card_y + 180.0;
+            let name_y = card_y + 110.0 * scale_factor;
             if is_selected {
                 // Name glow for selected
                 draw_text(
@@ -446,10 +518,10 @@ impl State for CharacterSelectState {
                 if is_selected { char_color } else { WHITE },
             );
 
-            // Ability name in colored box
-            let ability_size = 18.0;
+            // Ability name in colored box - scaled
+            let ability_size = (14.0 * scale_factor).min(18.0).max(12.0);
             let ability_dims = measure_text(character.ability_name, None, ability_size as u16, 1.0);
-            let ability_y = card_y + 215.0;
+            let ability_y = card_y + 140.0 * scale_factor;
             draw_rectangle(
                 x + card_width * 0.5 - ability_dims.width * 0.5 - 10.0,
                 ability_y - 20.0,
@@ -470,9 +542,9 @@ impl State for CharacterSelectState {
                 char_color,
             );
 
-            // Stats section
-            let stats_y = card_y + 255.0;
-            let stat_size = 16.0;
+            // Stats section - scaled
+            let stats_y = card_y + 165.0 * scale_factor;
+            let stat_size = (12.0 * scale_factor).min(14.0).max(10.0);
 
             draw_text(
                 "STATS",
@@ -520,49 +592,53 @@ impl State for CharacterSelectState {
             );
         }
 
-        // Details panel for selected character
+        // Details panel for selected character - scaled
         let character = &CHARACTERS[self.selected_index];
         let char_color = Self::get_character_color(character.id);
-        let detail_y = start_y + 2.0 * (card_height + spacing) + 20.0;
-        let detail_height = 140.0;
+        let num_rows = (CHARACTERS.len() + self.chars_per_row - 1) / self.chars_per_row;
+        let detail_y = start_y + num_rows as f32 * (card_height + spacing) + 10.0 * scale_factor;
+        let detail_height = 100.0 * scale_factor;
+        let detail_margin = 50.0 * scale_factor;
 
         // Detail panel background
         draw_rectangle(
-            100.0,
+            detail_margin,
             detail_y,
-            screen_width() - 200.0,
+            screen_width() - detail_margin * 2.0,
             detail_height,
             Color::new(0.05, 0.05, 0.08, 0.95),
         );
         draw_rectangle_lines(
-            100.0,
+            detail_margin,
             detail_y,
-            screen_width() - 200.0,
+            screen_width() - detail_margin * 2.0,
             detail_height,
-            3.0,
+            2.0 * scale_factor,
             char_color,
         );
 
-        // Character description
+        // Character description - scaled
         let description = Self::get_character_description(character.id);
-        draw_text(description, 120.0, detail_y + 25.0, 18.0, LIGHTGRAY);
+        let desc_size = (14.0 * scale_factor).min(16.0).max(11.0);
+        draw_text(description, detail_margin + 15.0 * scale_factor, detail_y + 20.0 * scale_factor, desc_size, LIGHTGRAY);
 
-        // Voice line section
+        // Voice line section - scaled
         let voice_label = "VOICE LINE:";
-        draw_text(voice_label, 120.0, detail_y + 55.0, 18.0, char_color);
+        let label_size = (14.0 * scale_factor).min(16.0).max(11.0);
+        draw_text(voice_label, detail_margin + 15.0 * scale_factor, detail_y + 40.0 * scale_factor, label_size, char_color);
         draw_text(
             &format!("\"{}\"", character.voice_line),
-            120.0,
-            detail_y + 78.0,
-            20.0,
+            detail_margin + 15.0 * scale_factor,
+            detail_y + 58.0 * scale_factor,
+            (15.0 * scale_factor).min(18.0).max(12.0),
             GOLD,
         );
 
-        // Effects section
+        // Effects section - scaled
         let effects_label = "ABILITY EFFECTS:";
-        draw_text(effects_label, 120.0, detail_y + 108.0, 18.0, char_color);
+        draw_text(effects_label, detail_margin + 15.0 * scale_factor, detail_y + 78.0 * scale_factor, label_size, char_color);
 
-        let mut effect_x = 120.0;
+        let mut effect_x = detail_margin + 150.0 * scale_factor;
         for effect in character.effects {
             let effect_text = match effect {
                 crate::data::characters::AbilityEffect::DamageBoost(mult) => {
@@ -574,20 +650,24 @@ impl State for CharacterSelectState {
                 crate::data::characters::AbilityEffect::SpeedBoost(mult) => {
                     format!("SPD ×{:.1}", mult)
                 }
-                crate::data::characters::AbilityEffect::SplashDamage(dmg, radius) => {
+                crate::data::characters::AbilityEffect::SplashDamage(dmg, _radius) => {
                     format!("AOE {:.0}dmg", dmg)
                 }
                 crate::data::characters::AbilityEffect::FireDamage(dps, _) => {
                     format!("FIRE {:.0}dps", dps)
                 }
+                crate::data::characters::AbilityEffect::ProjectileDamage(dmg) => {
+                    format!("PROJ {:.0}dmg", dmg)
+                }
             };
 
-            let effect_dims = measure_text(&effect_text, None, 16, 1.0);
+            let effect_text_size = (12.0 * scale_factor).min(14.0).max(10.0) as u16;
+            let effect_dims = measure_text(&effect_text, None, effect_text_size, 1.0);
             draw_rectangle(
                 effect_x,
-                detail_y + 116.0,
-                effect_dims.width + 16.0,
-                24.0,
+                detail_y + 72.0 * scale_factor,
+                effect_dims.width + 12.0 * scale_factor,
+                18.0 * scale_factor,
                 Color::new(
                     char_color.r * 0.4,
                     char_color.g * 0.4,
@@ -597,44 +677,47 @@ impl State for CharacterSelectState {
             );
             draw_rectangle_lines(
                 effect_x,
-                detail_y + 116.0,
-                effect_dims.width + 16.0,
-                24.0,
-                2.0,
+                detail_y + 72.0 * scale_factor,
+                effect_dims.width + 12.0 * scale_factor,
+                18.0 * scale_factor,
+                1.5 * scale_factor,
                 char_color,
             );
-            draw_text(&effect_text, effect_x + 8.0, detail_y + 133.0, 16.0, WHITE);
-            effect_x += effect_dims.width + 26.0;
+            draw_text(&effect_text, effect_x + 6.0 * scale_factor, detail_y + 85.0 * scale_factor, effect_text_size as f32, WHITE);
+            effect_x += effect_dims.width + 20.0 * scale_factor;
         }
 
-        // Instructions at bottom
-        let instructions_y = screen_height() - 50.0;
+        // Instructions at bottom - scaled
+        let instructions_y = screen_height() - 40.0 * scale_factor;
+        let inst_height = 60.0 * scale_factor;
         draw_rectangle(
             0.0,
-            instructions_y - 30.0,
+            instructions_y - 20.0 * scale_factor,
             screen_width(),
-            80.0,
+            inst_height,
             Color::new(0.0, 0.0, 0.0, 0.8),
         );
 
-        let instructions = "ARROW KEYS: Navigate  |  ENTER: Select Character  |  ESC: Back to Menu";
-        let inst_dims = measure_text(instructions, None, 22, 1.0);
+        let instructions = "ARROW KEYS: Navigate  |  ENTER: Select  |  ESC: Back";
+        let inst_size = (16.0 * scale_factor).min(20.0).max(12.0);
+        let inst_dims = measure_text(instructions, None, inst_size as u16, 1.0);
         draw_text(
             instructions,
             screen_width() * 0.5 - inst_dims.width * 0.5,
             instructions_y,
-            22.0,
+            inst_size,
             Color::new(1.0, 1.0, 1.0, 0.9),
         );
 
-        // Keybind reminder
+        // Keybind reminder - scaled
         let keybind_text = "Press E during gameplay to activate ability!";
-        let keybind_dims = measure_text(keybind_text, None, 18, 1.0);
+        let keybind_size = (14.0 * scale_factor).min(16.0).max(11.0);
+        let keybind_dims = measure_text(keybind_text, None, keybind_size as u16, 1.0);
         draw_text(
             keybind_text,
             screen_width() * 0.5 - keybind_dims.width * 0.5,
-            instructions_y + 25.0,
-            18.0,
+            instructions_y + 20.0 * scale_factor,
+            keybind_size,
             YELLOW,
         );
     }
@@ -642,29 +725,49 @@ impl State for CharacterSelectState {
     fn handle_input(&mut self) {
         // Navigate left
         if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::A) {
-            if self.selected_index % 3 > 0 {
+            if self.selected_index % self.chars_per_row > 0 {
                 self.selected_index -= 1;
+            } else if self.selected_index > 0 {
+                // Wrap to end of previous row
+                self.selected_index = ((self.selected_index / self.chars_per_row) * self.chars_per_row) - 1;
             }
         }
 
         // Navigate right
         if is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::D) {
-            if self.selected_index % 3 < 2 && self.selected_index < CHARACTERS.len() - 1 {
-                self.selected_index += 1;
+            let current_row = self.selected_index / self.chars_per_row;
+            let current_col = self.selected_index % self.chars_per_row;
+            let next_index = self.selected_index + 1;
+
+            // Check if next index exists and is in the same row
+            if next_index < CHARACTERS.len() && next_index / self.chars_per_row == current_row {
+                self.selected_index = next_index;
+            } else if next_index < CHARACTERS.len() {
+                // Wrap to start of next row
+                self.selected_index = (current_row + 1) * self.chars_per_row;
             }
         }
 
         // Navigate up
         if is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::W) {
-            if self.selected_index >= 3 {
-                self.selected_index -= 3;
+            if self.selected_index >= self.chars_per_row {
+                self.selected_index -= self.chars_per_row;
+            } else {
+                // Wrap to bottom row
+                let last_row_start = ((CHARACTERS.len() - 1) / self.chars_per_row) * self.chars_per_row;
+                let col = self.selected_index % self.chars_per_row;
+                self.selected_index = (last_row_start + col).min(CHARACTERS.len() - 1);
             }
         }
 
         // Navigate down
         if is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::S) {
-            if self.selected_index + 3 < CHARACTERS.len() {
-                self.selected_index += 3;
+            let new_index = self.selected_index + self.chars_per_row;
+            if new_index < CHARACTERS.len() {
+                self.selected_index = new_index;
+            } else {
+                // Wrap to top row
+                self.selected_index = self.selected_index % self.chars_per_row;
             }
         }
 

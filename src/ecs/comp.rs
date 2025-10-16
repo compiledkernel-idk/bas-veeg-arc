@@ -80,6 +80,7 @@ pub enum CharacterType {
     // Bosses
     Bastiaan,
     KeizerBomTaha,
+    Mees, // Boss that throws pita sirrachas
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

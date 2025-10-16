@@ -9,6 +9,10 @@ pub enum CharacterId {
     Hadi,
     Nitin,
     PalaBaba,
+    Fufinho,
+    EfeAbi,
+    Jad,
+    Umut,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -18,6 +22,7 @@ pub enum AbilityEffect {
     SpeedBoost(f32),
     SplashDamage(f32, f32), // damage, radius
     FireDamage(f32, f32),   // damage per second, duration
+    ProjectileDamage(f32),  // For Fufinho's fufu throw
 }
 
 pub struct Character {
@@ -61,7 +66,23 @@ const PALA_BABA_EFFECTS: &[AbilityEffect] = &[
     AbilityEffect::HealthBoost(30.0),
 ];
 
-pub const CHARACTERS: [Character; 7] = [
+const FUFINHO_EFFECTS: &[AbilityEffect] = &[AbilityEffect::ProjectileDamage(80.0)]; // Fufu projectile damage
+
+const EFE_ABI_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::SpeedBoost(2.5),
+    AbilityEffect::DamageBoost(2.0),
+];
+
+const JAD_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::SpeedBoost(2.2),
+    AbilityEffect::DamageBoost(2.5),
+];
+
+const UMUT_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::DamageBoost(2.3),
+];
+
+pub const CHARACTERS: [Character; 11] = [
     Character {
         id: CharacterId::Berkay,
         name: "Berkay",
@@ -125,6 +146,42 @@ pub const CHARACTERS: [Character; 7] = [
         duration: 10.0,
         cooldown: 30.0,
     },
+    Character {
+        id: CharacterId::Fufinho,
+        name: "Fufinho",
+        ability_name: "Fufu Throw",
+        voice_line: "ik eet fufu!",
+        effects: FUFINHO_EFFECTS,
+        duration: 0.1, // Instant projectile
+        cooldown: 8.0,
+    },
+    Character {
+        id: CharacterId::EfeAbi,
+        name: "Efe abi",
+        ability_name: "Lahmacun Power",
+        voice_line: "Ik eet lahmacun!",
+        effects: EFE_ABI_EFFECTS,
+        duration: 5.0,
+        cooldown: 15.0,
+    },
+    Character {
+        id: CharacterId::Jad,
+        name: "Jad",
+        ability_name: "KFC Rage",
+        voice_line: "ik eet", // Will trigger special dialogue sequence
+        effects: JAD_EFFECTS,
+        duration: 6.0,
+        cooldown: 20.0,
+    },
+    Character {
+        id: CharacterId::Umut,
+        name: "Umut",
+        ability_name: "Terraria Arc",
+        voice_line: "Ik ga nu in mijn terraria arc",
+        effects: UMUT_EFFECTS,
+        duration: 5.0,
+        cooldown: 13.0,
+    },
 ];
 
 impl Character {
@@ -145,6 +202,10 @@ impl CharacterId {
             CharacterId::Hadi => CT::Hadi,
             CharacterId::Nitin => CT::Nitin,
             CharacterId::PalaBaba => CT::YigitBaba,
+            CharacterId::Fufinho => CT::Luca, // Temporarily map to existing type
+            CharacterId::EfeAbi => CT::Hadi,   // Temporarily map to existing type
+            CharacterId::Jad => CT::Berkay,    // Temporarily map to existing type
+            CharacterId::Umut => CT::Nitin,    // Temporarily map to existing type
         }
     }
 }

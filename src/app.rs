@@ -1,6 +1,7 @@
 use crate::audio::mixer::AudioMixer;
 use crate::data::save::SaveManager;
 use crate::render::camera::GameCamera;
+use crate::render::graphics_enhancement::{GraphicsEnhancement, QualityPreset};
 use crate::states::{StateManager, StateType};
 use macroquad::prelude::*;
 
@@ -12,6 +13,7 @@ pub struct Application {
     state_manager: StateManager,
     camera: GameCamera,
     audio_mixer: AudioMixer,
+    graphics_enhancement: GraphicsEnhancement,
     #[allow(dead_code)] // Future use: save/load system
     save_manager: SaveManager,
     accumulator: f64,
@@ -22,10 +24,19 @@ pub struct Application {
 
 impl Application {
     pub fn new() -> Self {
+        let mut graphics = GraphicsEnhancement::new();
+        // Start with more moderate settings to avoid black screen
+        graphics.set_quality_preset(QualityPreset::Medium);
+        graphics.bloom_intensity = 0.3;
+        graphics.chromatic_aberration = 0.05;
+        graphics.vignette_strength = 0.15;
+        graphics.ambient_light = Color::new(0.8, 0.8, 0.85, 1.0); // Much brighter ambient
+
         Self {
             state_manager: StateManager::new(),
             camera: GameCamera::new(VIRTUAL_WIDTH, VIRTUAL_HEIGHT),
             audio_mixer: AudioMixer::new(),
+            graphics_enhancement: graphics,
             save_manager: SaveManager::new(),
             accumulator: 0.0,
             fullscreen: false,
@@ -58,11 +69,17 @@ impl Application {
             self.audio_mixer.update(frame_time as f32);
             self.state_manager.update(frame_time as f32);
 
+            // Temporarily disable graphics enhancement to diagnose black screen issue
+            // self.graphics_enhancement.begin_frame();
+
             clear_background(BLACK);
 
             self.camera.apply_transform();
             self.state_manager.render(interpolation as f32);
             self.camera.reset_transform();
+
+            // Temporarily disable graphics enhancement
+            // self.graphics_enhancement.end_frame();
 
             self.render_letterbox();
 
@@ -94,4 +111,8 @@ impl Application {
     }
 
     fn render_letterbox(&self) {}
+
+    pub fn get_graphics_enhancement_mut(&mut self) -> &mut GraphicsEnhancement {
+        &mut self.graphics_enhancement
+    }
 }

@@ -2,6 +2,7 @@ pub mod boot;
 pub mod character_select;
 pub mod controls;
 pub mod cutscene;
+pub mod endless;
 pub mod gameplay;
 pub mod menu;
 pub mod results;
@@ -23,6 +24,7 @@ pub enum StateType {
     Versus,
     Results,
     Settings,
+    EndlessMode,
 }
 
 pub trait State {
@@ -148,6 +150,7 @@ impl StateManager {
             StateType::Versus => Box::new(versus::VersusState::new()),
             StateType::Results => Box::new(results::ResultsState::new()),
             StateType::Settings => Box::new(settings::SettingsState::new()),
+            StateType::EndlessMode => Box::new(endless::EndlessState::new()),
         }
     }
 }

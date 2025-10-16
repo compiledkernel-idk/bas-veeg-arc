@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::combat::hitbox::{Hitbox, SpecialType};
+use crate::combat::hitbox::{Hitbox, HitType, SpecialType};
 use crate::combat::hurtbox::Hurtbox;
 use crate::combat::inputs::InputManager;
 use crate::data::{AbilityState, CharacterId, ShopManager, UpgradeId};
@@ -13,6 +13,7 @@ use crate::ecs::{
 use crate::ecs::{
     AISystem, AnimationSystem, CombatSystem, MovementSystem, ParticleSystem, PhysicsSystem,
 };
+use crate::render::{TextureManager, GraphicsEnhancement, EnhancedSprite};
 use crate::states::State;
 use crate::states::StateType;
 use macroquad::prelude::*;
@@ -31,6 +32,8 @@ pub struct GameplayState {
     particle_system: ParticleSystem,
     ai_system: AISystem,
     input_manager: InputManager,
+    texture_manager: TextureManager,
+    graphics_enhancement: Option<*mut GraphicsEnhancement>,
     current_map: MapType,
     current_wave: usize,
     waves_completed: usize,
@@ -53,8 +56,6 @@ pub struct GameplayState {
     game_over: bool,
     selected_character: CharacterId,
     ability_state: AbilityState,
-    ability_voice_line: Option<String>,
-    ability_voice_timer: f32,
     burning_enemies: HashMap<EntityId, (f32, f32)>, // entity -> (remaining_time, dps)
     transition_to: Option<StateType>,
     bomb_entities: Vec<EntityId>,
@@ -62,6 +63,10 @@ pub struct GameplayState {
     boss_battle_won: bool,
     dialogue_choice_active: bool,
     dialogue_choice_selected: usize,
+    // Auto-attack system
+    auto_attack_timer: f32,
+    auto_attack_delay: f32,
+    is_holding_attack: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -141,6 +146,10 @@ const SHOP_OPTIONS: [ShopOption; 8] = [
 ];
 
 impl GameplayState {
+    pub fn set_graphics_enhancement(&mut self, graphics: *mut GraphicsEnhancement) {
+        self.graphics_enhancement = Some(graphics);
+    }
+
     pub fn new() -> Self {
         Self {
             world: World::new(),
@@ -161,6 +170,8 @@ impl GameplayState {
             particle_system: ParticleSystem,
             ai_system: AISystem,
             input_manager: InputManager::new(),
+            texture_manager: TextureManager::new(),
+            graphics_enhancement: None,
             current_map: MapType::Classroom,
             current_wave: 0,
             waves_completed: 0,
@@ -183,8 +194,6 @@ impl GameplayState {
             game_over: false,
             selected_character: crate::data::get_selected_character(),
             ability_state: AbilityState::new(crate::data::get_selected_character()),
-            ability_voice_line: None,
-            ability_voice_timer: 0.0,
             burning_enemies: HashMap::new(),
             transition_to: None,
             bomb_entities: Vec::new(),
@@ -192,6 +201,10 @@ impl GameplayState {
             boss_battle_won: false,
             dialogue_choice_active: false,
             dialogue_choice_selected: 0,
+            // Auto-attack system
+            auto_attack_timer: 0.0,
+            auto_attack_delay: 0.25, // Attack every 0.25 seconds when holding
+            is_holding_attack: false,
         }
     }
 
@@ -544,6 +557,104 @@ impl GameplayState {
         self.enemy_entities.push(entity);
     }
 
+    fn spawn_mees_boss(&mut self) {
+        // Spawn Mees boss - throws pita sirrachas with fire damage
+        let boss_entity = self.world.create_entity();
+
+        self.world.add_component(
+            boss_entity,
+            Transform {
+                position: Vec2::new(900.0, 500.0),
+                rotation: 0.0,
+                scale: Vec2::new(1.5, 1.5), // Bigger than normal enemies
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            Velocity {
+                linear: Vec2::ZERO,
+                angular: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            Health {
+                current: 800.0,
+                maximum: 800.0,
+                armor: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            HurtboxComponent {
+                hurtbox: Hurtbox::new_standing(),
+                active: true,
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            HitboxComponent {
+                hitbox: Hitbox {
+                    offset: Vec2::new(-30.0, -50.0),
+                    size: Vec2::new(60.0, 100.0),
+                    damage: 30.0, // Pita sirracha damage
+                    hitstun: 0.3,
+                    blockstun: 0.1,
+                    pushback: Vec2::new(10.0, 0.0),
+                    launch_power: Vec2::new(5.0, -8.0),
+                    hit_type: HitType::Heavy,
+                    can_juggle: false,
+                    armor_break: true,
+                },
+                active: false,
+                hits_registered: Vec::new(),
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            Fighter {
+                character_type: CharacterType::Mees,
+                state: FighterState::Idle,
+                combo_counter: 0,
+                meter: 0.0,
+                max_meter: 100.0,
+                hitstun: 0.0,
+                blockstun: 0.0,
+                invulnerable: false,
+                facing: -1.0,
+                attack_timer: 0.0,
+                team: Team::Enemy,
+                consecutive_hits_taken: 0,
+                hit_decay_timer: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            AIController {
+                behavior: AIBehavior::Boss(BossPhase::Phase1),
+                target_entity: self.player_entity,
+                state_timer: 0.0,
+                reaction_delay: 0.2,
+                difficulty: 1.5,
+            },
+        );
+
+        self.enemy_entities.push(boss_entity);
+
+        // Show boss health bar or special UI
+        self.show_dialogue(
+            "Mees",
+            "Je krijgt geen tikkie, dus je krijgt mijn pita sirracha!",
+            "No tikkie for you, so you get my pita sirracha!",
+        );
+    }
+
     fn spawn_ally(&mut self, pos: Vec2, character: CharacterType) {
         let entity = self.world.create_entity();
 
@@ -735,13 +846,13 @@ impl State for GameplayState {
         // Update ability state
         self.ability_state.update(dt);
 
-        // Update ability voice line timer
-        if self.ability_voice_timer > 0.0 {
-            self.ability_voice_timer -= dt;
-            if self.ability_voice_timer <= 0.0 {
-                self.ability_voice_line = None;
-            }
+        // Update auto-attack timer
+        if self.auto_attack_timer > 0.0 {
+            self.auto_attack_timer -= dt;
         }
+
+        // Update ability voice line timer
+        // Voice lines now handled through dialogue system
 
         // Update combat system with ability damage multiplier
         let ability_damage_mult = self.ability_state.get_damage_multiplier();
@@ -1173,6 +1284,10 @@ impl State for GameplayState {
                             CharacterId::Hadi => Color::new(1.0, 0.8, 0.0, 0.4 * pulse as f32),
                             CharacterId::Nitin => Color::new(1.0, 0.3, 0.0, 0.4 * pulse as f32),
                             CharacterId::PalaBaba => Color::new(0.8, 0.0, 0.2, 0.4 * pulse as f32),
+                            CharacterId::Fufinho => Color::new(0.9, 0.0, 0.9, 0.4 * pulse as f32), // Purple
+                            CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 0.4 * pulse as f32), // Brown
+                            CharacterId::Jad => Color::new(1.0, 0.0, 0.0, 0.4 * pulse as f32), // Red
+                            CharacterId::Umut => Color::new(0.5, 0.0, 1.0, 0.4 * pulse as f32), // Purple for Terraria
                         };
                         // Draw multiple pulsing rings for aura effect
                         for i in 0..4 {
@@ -1503,14 +1618,30 @@ impl State for GameplayState {
                         move_depth += 1.0;
                     }
 
-                    if is_key_pressed(KeyCode::J) {
-                        new_state = Some(FighterState::LightAttack);
-                    }
-                    if is_key_pressed(KeyCode::K) {
-                        new_state = Some(FighterState::HeavyAttack);
-                    }
-                    if is_key_pressed(KeyCode::L) {
-                        new_state = Some(FighterState::Special);
+                    // Auto-attack system - hold button for continuous attacks
+                    if is_key_down(KeyCode::J) || is_key_down(KeyCode::K) || is_key_down(KeyCode::L) {
+                        // Mark that we're holding an attack button
+                        self.is_holding_attack = true;
+
+                        // Check if it's time to attack again
+                        if self.auto_attack_timer <= 0.0 {
+                            if is_key_down(KeyCode::J) {
+                                new_state = Some(FighterState::LightAttack);
+                            } else if is_key_down(KeyCode::K) {
+                                new_state = Some(FighterState::HeavyAttack);
+                            } else if is_key_down(KeyCode::L) {
+                                new_state = Some(FighterState::Special);
+                            }
+
+                            // Reset timer for next attack
+                            if new_state.is_some() {
+                                self.auto_attack_timer = self.auto_attack_delay;
+                            }
+                        }
+                    } else {
+                        // No attack button held - reset
+                        self.is_holding_attack = false;
+                        self.auto_attack_timer = 0.0;
                     }
 
                     // Ability activation
@@ -1518,8 +1649,44 @@ impl State for GameplayState {
                         if self.ability_state.can_activate() {
                             let voice_line = self.ability_state.activate();
                             if !voice_line.is_empty() {
-                                self.ability_voice_line = Some(voice_line.to_string());
-                                self.ability_voice_timer = 2.0;
+                                // Check if this is Jad's special KFC Rage ability
+                                if self.selected_character == CharacterId::Jad {
+                                    // Jad's special dialogue sequence
+                                    self.dialogue_queue.push(DialogueLine {
+                                        speaker: "Jad".to_string(),
+                                        dutch: "KFC RAGE!".to_string(),
+                                        english: "KFC RAGE!".to_string(),
+                                        duration: 2.0,
+                                    });
+                                    self.dialogue_queue.push(DialogueLine {
+                                        speaker: "Jad".to_string(),
+                                        dutch: "nu ben ik boos".to_string(),
+                                        english: "now I'm angry".to_string(),
+                                        duration: 1.5,
+                                    });
+                                    self.dialogue_queue.push(DialogueLine {
+                                        speaker: "Umut".to_string(),
+                                        dutch: "typisch".to_string(),
+                                        english: "typical".to_string(),
+                                        duration: 1.5,
+                                    });
+                                    self.dialogue_queue.push(DialogueLine {
+                                        speaker: "Jad".to_string(),
+                                        dutch: "ik eet".to_string(),
+                                        english: "I eat".to_string(),
+                                        duration: 1.5,
+                                    });
+                                    self.dialogue_queue.reverse();
+                                } else {
+                                    // Regular ability activation dialogue
+                                    let character = crate::data::characters::Character::get_by_id(self.selected_character);
+                                    self.dialogue_queue.push(DialogueLine {
+                                        speaker: character.name.to_string(),
+                                        dutch: voice_line.to_string(),
+                                        english: voice_line.to_string(), // Keep same for now
+                                        duration: 2.0,
+                                    });
+                                }
 
                                 // Apply health boost if applicable
                                 let health_boost = self.ability_state.get_health_boost();
@@ -1632,6 +1799,33 @@ impl GameplayState {
         // Special boss battle on rooftop - spawn immediately
         if self.current_map == MapType::Rooftop && self.current_wave == 1 {
             self.spawn_big_boss();
+            self.enemies_to_spawn = 0;
+            return;
+        }
+
+        // Special Mees boss battle at cafeteria
+        if self.current_map == MapType::Cafeteria && self.current_wave == 1 {
+            // Show dialogue for Mees encounter (pushed in reverse order)
+            self.dialogue_queue.push(DialogueLine {
+                speaker: "Mees".to_string(),
+                dutch: "Geen tikkie! Pita sirracha komt dan eraan!".to_string(),
+                english: "No tikkie! Pita sirracha incoming then!".to_string(),
+                duration: 3.5,
+            });
+            self.dialogue_queue.push(DialogueLine {
+                speaker: "Berkay".to_string(),
+                dutch: "Nee".to_string(),
+                english: "No".to_string(),
+                duration: 2.0,
+            });
+            self.dialogue_queue.push(DialogueLine {
+                speaker: "Mees".to_string(),
+                dutch: "Berkay, mag ik tikkie?".to_string(),
+                english: "Berkay, can I have tikkie?".to_string(),
+                duration: 3.0,
+            });
+
+            self.spawn_mees_boss();
             self.enemies_to_spawn = 0;
             return;
         }
@@ -2050,43 +2244,50 @@ impl GameplayState {
     }
 
     fn render_shop(&self) {
+        // Calculate scale factor based on screen size
+        let scale_factor = (screen_width() / 1920.0).min(screen_height() / 1080.0).max(0.5).min(1.0);
+
         let overlay = Color::new(0.0, 0.0, 0.0, 0.75);
         draw_rectangle(0.0, 0.0, screen_width(), screen_height(), overlay);
 
         let title = "Arc Supply Shop";
-        let title_size = 48.0;
+        let title_size = (36.0 * scale_factor).min(48.0).max(24.0);
         let title_dims = measure_text(title, None, title_size as u16, 1.0);
         draw_text(
             title,
             screen_width() * 0.5 - title_dims.width * 0.5,
-            140.0,
+            100.0 * scale_factor,
             title_size,
             YELLOW,
         );
 
         let currency_text = format!("Arc Tokens: {}", self.shop_manager.currency());
+        let currency_box_width = 280.0 * scale_factor;
+        let currency_box_height = 30.0 * scale_factor;
         draw_rectangle(
-            screen_width() * 0.5 - 180.0,
-            160.0,
-            360.0,
-            38.0,
+            screen_width() * 0.5 - currency_box_width * 0.5,
+            130.0 * scale_factor,
+            currency_box_width,
+            currency_box_height,
             Color::new(0.15, 0.15, 0.2, 0.9),
         );
+        let currency_size = (20.0 * scale_factor).min(26.0).max(16.0);
+        let currency_dims = measure_text(&currency_text, None, currency_size as u16, 1.0);
         draw_text(
             &currency_text,
-            screen_width() * 0.5 - 160.0,
-            188.0,
-            26.0,
+            screen_width() * 0.5 - currency_dims.width * 0.5,
+            150.0 * scale_factor,
+            currency_size,
             Color::new(1.0, 0.9, 0.3, 1.0),
         );
 
-        let base_x = screen_width() * 0.5 - 340.0;
-        let base_y = 220.0;
-        let width = 680.0;
-        let height = 100.0;
+        let width = (500.0 * scale_factor).min(680.0).max(400.0);
+        let height = (70.0 * scale_factor).min(90.0).max(60.0);
+        let base_x = screen_width() * 0.5 - width * 0.5;
+        let base_y = 180.0 * scale_factor;
 
         for (index, option) in SHOP_OPTIONS.iter().enumerate() {
-            let y = base_y + index as f32 * (height + 20.0);
+            let y = base_y + index as f32 * (height + 15.0 * scale_factor);
             let owned = self.shop_manager.has_upgrade(option.id);
             let background = if owned {
                 Color::new(0.15, 0.35, 0.18, 0.9)
@@ -2100,25 +2301,29 @@ impl GameplayState {
                 y,
                 width,
                 height,
-                2.0,
+                1.5 * scale_factor,
                 Color::new(1.0, 1.0, 1.0, 0.3),
             );
 
             let key_label = format!("{}.", index + 1);
-            draw_text(&key_label, base_x + 16.0, y + 42.0, 26.0, WHITE);
+            let key_size = (20.0 * scale_factor).min(26.0).max(16.0);
+            draw_text(&key_label, base_x + 12.0 * scale_factor, y + height * 0.5, key_size, WHITE);
 
+            let title_size = (20.0 * scale_factor).min(26.0).max(16.0);
             draw_text(
                 option.title,
-                base_x + 60.0,
-                y + 38.0,
-                28.0,
+                base_x + 45.0 * scale_factor,
+                y + height * 0.35,
+                title_size,
                 Color::new(1.0, 0.9, 0.5, 1.0),
             );
+
+            let desc_size = (14.0 * scale_factor).min(18.0).max(12.0);
             draw_text(
                 option.description,
-                base_x + 60.0,
-                y + 68.0,
-                20.0,
+                base_x + 45.0 * scale_factor,
+                y + height * 0.65,
+                desc_size,
                 Color::new(0.85, 0.85, 0.95, 1.0),
             );
 
@@ -2136,22 +2341,25 @@ impl GameplayState {
                 Color::new(1.0, 0.5, 0.5, 1.0)
             };
 
+            let cost_size = (18.0 * scale_factor).min(24.0).max(14.0);
+            let cost_dims = measure_text(&cost_text, None, cost_size as u16, 1.0);
             draw_text(
                 &cost_text,
-                base_x + width - 180.0,
-                y + 50.0,
-                24.0,
+                base_x + width - cost_dims.width - 15.0 * scale_factor,
+                y + height * 0.5,
+                cost_size,
                 cost_color,
             );
         }
 
-        let footer = "Press 1-8 to buy upgrades • B to close";
-        let footer_dims = measure_text(footer, None, 22, 1.0);
+        let footer = "Press 1-8 to buy • B to close";
+        let footer_size = (16.0 * scale_factor).min(20.0).max(14.0);
+        let footer_dims = measure_text(footer, None, footer_size as u16, 1.0);
         draw_text(
             footer,
             screen_width() * 0.5 - footer_dims.width * 0.5,
-            screen_height() - 60.0,
-            22.0,
+            screen_height() - 40.0 * scale_factor,
+            footer_size,
             WHITE,
         );
     }
@@ -2309,44 +2517,7 @@ impl GameplayState {
 
         draw_text(&ability_text, 60.0, ability_y + 25.0, 18.0, WHITE);
 
-        // Show voice line if active
-        if let Some(ref voice_line) = self.ability_voice_line {
-            let voice_y = screen_height() * 0.3;
-            let voice_size = 40.0;
-            let voice_dims = measure_text(voice_line, None, voice_size as u16, 1.0);
-
-            // Background
-            draw_rectangle(
-                screen_width() * 0.5 - voice_dims.width * 0.5 - 20.0,
-                voice_y - 40.0,
-                voice_dims.width + 40.0,
-                60.0,
-                Color::new(0.0, 0.0, 0.0, 0.7),
-            );
-
-            // Text with glow effect
-            let glow_color = Color::new(1.0, 1.0, 0.0, 0.5);
-            for dx in [-2.0, 0.0, 2.0] {
-                for dy in [-2.0, 0.0, 2.0] {
-                    if dx != 0.0 || dy != 0.0 {
-                        draw_text(
-                            voice_line,
-                            screen_width() * 0.5 - voice_dims.width * 0.5 + dx,
-                            voice_y + dy,
-                            voice_size,
-                            glow_color,
-                        );
-                    }
-                }
-            }
-            draw_text(
-                voice_line,
-                screen_width() * 0.5 - voice_dims.width * 0.5,
-                voice_y,
-                voice_size,
-                YELLOW,
-            );
-        }
+        // Voice lines are now shown through the dialogue system which freezes the game
     }
 
     fn character_display_name(&self, character: &CharacterType, is_player: bool) -> String {
@@ -2370,6 +2541,7 @@ impl GameplayState {
             CharacterType::Coach => "Coach".to_string(),
             CharacterType::Bastiaan => "BOSS BASTIAAN".to_string(),
             CharacterType::KeizerBomTaha => "Keizer Bom Taha".to_string(),
+            CharacterType::Mees => "BOSS MEES - PITA SIRRACHA".to_string(),
         }
     }
 
@@ -3354,7 +3526,72 @@ impl GameplayState {
 
         let pos = base_pos + Vec2::new(sway, bob);
 
-        // Render player with selected character appearance
+        // Try to render with enhanced sprites first
+        let char_name = if is_player {
+            match self.selected_character {
+                CharacterId::Bas => "bas",
+                CharacterId::Berkay => "berkay",
+                CharacterId::Gefferinho => "gefferinho",
+                CharacterId::Hadi => "hadi",
+                CharacterId::Nitin => "nitin",
+                CharacterId::Luca => "luca",
+                CharacterId::PalaBaba => "palababa",
+                CharacterId::Fufinho => "fufinho",
+                CharacterId::EfeAbi => "efeabi",
+                CharacterId::Jad => "jad",
+                CharacterId::Umut => "umut",
+            }
+        } else {
+            match &fighter.character_type {
+                CharacterType::Bas => "bas",
+                CharacterType::Berkay => "berkay",
+                CharacterType::Gefferinho => "gefferinho",
+                CharacterType::Hadi => "hadi",
+                CharacterType::Nitin => "nitin",
+                CharacterType::Luca => "luca",
+                CharacterType::YigitBaba => "palababa",
+                _ => "bas", // Default to Bas for other character types
+            }
+        };
+
+        if let Some(sprite) = self.texture_manager.get_sprite(&format!("character_{}", char_name)) {
+            // Render with enhanced sprite
+            let mut enhanced_sprite = sprite.clone();
+            enhanced_sprite.position = pos - Vec2::new(64.0, 100.0); // Center the sprite
+            enhanced_sprite.size = Vec2::new(128.0, 128.0);
+
+            // Apply combat effects
+            if matches!(state, FighterState::Super) {
+                enhanced_sprite.glow = 1.0;
+                enhanced_sprite.emissive = Color::new(1.0, 0.8, 0.0, 1.0);
+                enhanced_sprite.outline_color = Some(Color::new(1.0, 1.0, 0.0, 0.8));
+            } else if matches!(state, FighterState::Special) {
+                enhanced_sprite.glow = 0.5;
+                enhanced_sprite.emissive = Color::new(0.5, 0.5, 1.0, 0.5);
+            } else if matches!(state, FighterState::Hitstun) {
+                enhanced_sprite.color = Color::new(1.0, 0.5, 0.5, 1.0);
+            }
+
+            // Flip sprite based on facing direction
+            if fighter.facing < 0.0 {
+                enhanced_sprite.size.x *= -1.0;
+                enhanced_sprite.position.x += 128.0;
+            }
+
+            enhanced_sprite.draw();
+
+            // Add dynamic lighting during combat
+            if matches!(state, FighterState::LightAttack | FighterState::HeavyAttack | FighterState::Special | FighterState::Super) {
+                self.add_combat_lighting(pos, state, attack_phase);
+
+                // Add spectacular VFX for attacks
+                self.add_combat_vfx(pos, state, attack_phase, fighter.facing);
+            }
+
+            return;
+        }
+
+        // Fallback: Render player with selected character appearance using primitives
         if is_player {
             self.render_selected_character(pos, state, attack_phase, fighter.facing);
             return;
@@ -4560,6 +4797,33 @@ impl GameplayState {
                     Color::new(0.5, 0.5, 0.5, 1.0),
                 );
             }
+            CharacterType::Mees => {
+                // Mees - blonde boy with medium hair who throws pita sirrachas
+                // HEAD - blonde hair
+                draw_circle(pos.x, pos.y - 45.0, 26.0, Color::new(1.0, 0.95, 0.65, 1.0)); // Blonde hair
+                // Face
+                draw_circle(pos.x, pos.y - 38.0, 22.0, Color::new(1.0, 0.85, 0.70, 1.0)); // Skin
+                // Eyes
+                draw_circle(pos.x - 7.0, pos.y - 40.0, 3.0, Color::new(0.4, 0.6, 0.8, 1.0)); // Blue eyes
+                draw_circle(pos.x + 7.0, pos.y - 40.0, 3.0, Color::new(0.4, 0.6, 0.8, 1.0));
+                // Body - red/orange shirt (pita sirracha colors)
+                draw_rectangle(
+                    pos.x - 22.0,
+                    pos.y - 20.0,
+                    44.0,
+                    55.0,
+                    Color::new(1.0, 0.3, 0.1, 1.0), // Orange-red for pita sirracha theme
+                );
+                // Draw pita in hand if attacking
+                if attack_phase > 0.0 {
+                    let hand_x = pos.x + 30.0 * fighter.facing;
+                    let hand_y = pos.y - 10.0;
+                    // Pita bread
+                    draw_ellipse(hand_x, hand_y, 15.0, 8.0, 0.3, Color::new(0.9, 0.8, 0.6, 1.0));
+                    // Sirracha sauce
+                    draw_circle(hand_x, hand_y, 5.0, Color::new(1.0, 0.2, 0.0, 0.8));
+                }
+            }
         }
 
         if attack_phase > 0.0 {
@@ -4606,6 +4870,10 @@ impl GameplayState {
             CharacterId::Nitin => (Color::new(0.65, 0.45, 0.30, 1.0), 26.0, 1.0, 4), // Brown skin
             CharacterId::Luca => (Color::new(1.0, 0.85, 0.70, 1.0), 26.0, 1.0, 5), // Normal, light skin
             CharacterId::PalaBaba => (Color::new(1.0, 0.90, 0.80, 1.0), 26.0, 1.0, 6), // White skin
+            CharacterId::Fufinho => (Color::new(0.45, 0.30, 0.20, 1.0), 26.0, 1.05, 7), // Dark brown skin
+            CharacterId::EfeAbi => (Color::new(0.90, 0.75, 0.60, 1.0), 26.0, 1.1, 8), // Light brown skin
+            CharacterId::Jad => (Color::new(1.0, 0.85, 0.70, 1.0), 26.0, 1.2, 9), // Normal skin, wider build
+            CharacterId::Umut => (Color::new(0.95, 0.80, 0.65, 1.0), 25.0, 1.1, 10), // Slightly tan, medium build
         };
 
         let brown_hair = Color::new(0.3, 0.2, 0.1, 1.0);
@@ -4767,6 +5035,10 @@ impl GameplayState {
             CharacterId::Hadi => Color::new(0.9, 0.7, 0.0, 1.0),  // Gold
             CharacterId::Nitin => Color::new(0.9, 0.3, 0.0, 1.0), // Fire Orange
             CharacterId::PalaBaba => Color::new(0.7, 0.0, 0.15, 1.0), // Crimson
+            CharacterId::Fufinho => Color::new(0.6, 0.0, 0.6, 1.0), // Purple
+            CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 1.0), // Brown (lahmacun color)
+            CharacterId::Jad => Color::new(0.8, 0.0, 0.0, 1.0), // Red (KFC rage)
+            CharacterId::Umut => Color::new(0.4, 0.2, 0.6, 1.0), // Purple (Terraria)
         };
 
         draw_rectangle(
@@ -4873,6 +5145,10 @@ impl GameplayState {
                 CharacterId::Hadi => Color::new(1.0, 0.8, 0.0, 0.8),
                 CharacterId::Nitin => Color::new(1.0, 0.3, 0.0, 0.8),
                 CharacterId::PalaBaba => Color::new(0.8, 0.0, 0.2, 0.8),
+                CharacterId::Fufinho => Color::new(0.9, 0.0, 0.9, 0.8), // Purple
+                CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 0.8), // Brown
+                CharacterId::Jad => Color::new(1.0, 0.0, 0.0, 0.8), // Red
+                CharacterId::Umut => Color::new(0.6, 0.2, 1.0, 0.8), // Purple
             };
             let slash_size = 30.0 + attack_phase * 20.0;
             draw_circle(
@@ -5037,6 +5313,186 @@ impl GameplayState {
                 let y = origin_y + 20.0 + index as f32 * row_height;
                 draw_text(label, origin_x + 12.0, y, 20.0, header_color);
                 draw_text(keys, origin_x + 120.0, y, 20.0, detail_color);
+            }
+        }
+    }
+
+    fn add_combat_vfx(&self, pos: Vec2, state: FighterState, phase: f32, facing: f32) {
+        // Add spectacular visual effects based on attack type
+        let time = get_time() as f32;
+
+        match state {
+            FighterState::Super => {
+                // Create explosion effect
+                if let Some(explosion_sprite) = self.texture_manager.get_sprite("explosion") {
+                    let mut explosion = explosion_sprite.clone();
+                    explosion.position = pos - Vec2::new(128.0, 128.0);
+                    explosion.size = Vec2::new(256.0, 256.0) * (1.0 + phase * 0.5);
+                    explosion.color = Color::new(1.0, 1.0, 1.0, 1.0 - phase * 0.5);
+                    explosion.draw();
+                }
+
+                // Create shockwave rings
+                for i in 0..3 {
+                    let ring_phase = (phase + i as f32 * 0.2).min(1.0);
+                    let ring_radius = 50.0 + ring_phase * 200.0;
+                    let ring_alpha = (1.0 - ring_phase) * 0.5;
+                    draw_circle_lines(
+                        pos.x,
+                        pos.y,
+                        ring_radius,
+                        5.0,
+                        Color::new(1.0, 0.9, 0.3, ring_alpha)
+                    );
+                }
+            }
+            FighterState::Special => {
+                // Create aura effect
+                if let Some(aura_sprite) = self.texture_manager.get_sprite("aura") {
+                    let mut aura = aura_sprite.clone();
+                    aura.position = pos - Vec2::new(128.0, 128.0);
+                    aura.size = Vec2::new(256.0, 256.0) * (0.8 + (time * 3.0).sin() * 0.2);
+                    aura.color = Color::new(0.3, 0.6, 1.0, 0.6);
+                    aura.draw();
+                }
+
+                // Lightning effects for special
+                if phase > 0.3 && phase < 0.7 {
+                    if let Some(lightning_sprite) = self.texture_manager.get_sprite("lightning") {
+                        let mut lightning = lightning_sprite.clone();
+                        lightning.position = pos + Vec2::new(facing * 50.0, -100.0);
+                        lightning.size = Vec2::new(128.0, 256.0);
+                        lightning.color = Color::new(1.0, 1.0, 1.0, 0.8);
+                        lightning.draw();
+                    }
+                }
+            }
+            FighterState::HeavyAttack => {
+                // Fire effect for heavy attacks
+                if let Some(fire_sprite) = self.texture_manager.get_sprite("fire") {
+                    let mut fire = fire_sprite.clone();
+                    fire.position = pos + Vec2::new(facing * (30.0 + phase * 50.0), -20.0);
+                    fire.size = Vec2::new(64.0, 96.0) * (1.0 + phase * 0.3);
+                    fire.color = Color::new(1.0, 1.0, 1.0, 0.8);
+                    fire.draw();
+                }
+
+                // Impact effect
+                if phase > 0.5 {
+                    if let Some(impact_sprite) = self.texture_manager.get_sprite("impact") {
+                        let mut impact = impact_sprite.clone();
+                        impact.position = pos + Vec2::new(facing * 80.0, 0.0);
+                        impact.size = Vec2::new(128.0, 128.0);
+                        impact.color = Color::new(1.0, 1.0, 1.0, 1.0 - (phase - 0.5) * 2.0);
+                        impact.draw();
+                    }
+                }
+            }
+            FighterState::LightAttack => {
+                // Quick slash effect
+                let slash_length = 60.0 + phase * 40.0;
+                let slash_start = pos + Vec2::new(facing * 20.0, -10.0);
+                let slash_end = slash_start + Vec2::new(facing * slash_length, -phase * 20.0);
+
+                draw_line(
+                    slash_start.x,
+                    slash_start.y,
+                    slash_end.x,
+                    slash_end.y,
+                    3.0,
+                    Color::new(1.0, 1.0, 1.0, 0.8 - phase * 0.8)
+                );
+
+                // Speed lines
+                for i in 0..5 {
+                    let line_offset = (i as f32 - 2.0) * 10.0;
+                    let line_alpha = (0.5 - phase * 0.5) * (1.0 - (i as f32 / 5.0).abs());
+                    draw_line(
+                        pos.x - facing * 30.0,
+                        pos.y + line_offset,
+                        pos.x + facing * (50.0 + phase * 30.0),
+                        pos.y + line_offset - phase * 5.0,
+                        1.0,
+                        Color::new(0.8, 0.8, 1.0, line_alpha)
+                    );
+                }
+            }
+            _ => {}
+        }
+
+        // Add damage numbers for visual feedback
+        if phase > 0.5 && phase < 0.6 {
+            let damage = match state {
+                FighterState::Super => 50,
+                FighterState::Special => 30,
+                FighterState::HeavyAttack => 20,
+                FighterState::LightAttack => 10,
+                _ => 0
+            };
+
+            if damage > 0 {
+                let damage_text = format!("{}", damage);
+                let text_pos = pos + Vec2::new(facing * 50.0, -50.0 - (phase - 0.5) * 200.0);
+                let text_size = if damage >= 40 { 48.0 } else if damage >= 20 { 36.0 } else { 28.0 };
+                let text_color = if damage >= 40 {
+                    Color::new(1.0, 0.2, 0.2, 1.0 - (phase - 0.5) * 2.0)
+                } else if damage >= 20 {
+                    Color::new(1.0, 0.8, 0.2, 1.0 - (phase - 0.5) * 2.0)
+                } else {
+                    Color::new(1.0, 1.0, 1.0, 1.0 - (phase - 0.5) * 2.0)
+                };
+
+                draw_text(&damage_text, text_pos.x, text_pos.y, text_size, text_color);
+            }
+        }
+    }
+
+    fn add_combat_lighting(&self, pos: Vec2, state: FighterState, phase: f32) {
+        // Add dynamic lighting effects during combat
+        if let Some(graphics) = self.graphics_enhancement {
+            unsafe {
+                let graphics_ref = &mut *graphics;
+
+                match state {
+                    FighterState::Super => {
+                        // Golden explosive light for super attacks
+                        graphics_ref.add_light(
+                            pos,
+                            Color::new(1.0, 0.9, 0.3, 1.0),
+                            2.0 + phase,
+                            200.0 + phase * 100.0
+                        );
+                    }
+                    FighterState::Special => {
+                        // Blue pulsing light for special attacks
+                        let pulse = (get_time() as f32 * 10.0).sin() * 0.5 + 0.5;
+                        graphics_ref.add_light(
+                            pos,
+                            Color::new(0.3, 0.6, 1.0, 1.0),
+                            1.5 * pulse,
+                            150.0
+                        );
+                    }
+                    FighterState::HeavyAttack => {
+                        // Red impact light
+                        graphics_ref.add_light(
+                            pos + Vec2::new(30.0 * phase, 0.0),
+                            Color::new(1.0, 0.3, 0.3, 1.0),
+                            1.2,
+                            100.0
+                        );
+                    }
+                    FighterState::LightAttack => {
+                        // White flash for basic attacks
+                        graphics_ref.add_light(
+                            pos + Vec2::new(20.0 * phase, 0.0),
+                            Color::new(1.0, 1.0, 1.0, 1.0),
+                            0.8,
+                            80.0
+                        );
+                    }
+                    _ => {}
+                }
             }
         }
     }

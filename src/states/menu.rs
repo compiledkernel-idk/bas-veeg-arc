@@ -14,6 +14,7 @@ impl MenuState {
             selected_option: 0,
             options: vec![
                 "START STORY".to_string(),
+                "ENDLESS MODE".to_string(),
                 "CONTROLS".to_string(),
                 "EXIT".to_string(),
             ],
@@ -43,40 +44,50 @@ impl State for MenuState {
     fn render(&mut self, _interpolation: f32) {
         clear_background(BLACK);
 
+        // Calculate scale factor based on screen size
+        let scale_factor = (screen_width() / 1920.0).min(screen_height() / 1080.0).max(0.5);
+        let sw = screen_width();
+        let sh = screen_height();
+
+        // Animated background with scaling
         for i in 0..20 {
             for j in 0..12 {
-                let x = i as f32 * 100.0 - self.background_offset;
-                let y = j as f32 * 100.0;
-                let size = 2.0;
+                let x = i as f32 * 100.0 * scale_factor - self.background_offset;
+                let y = j as f32 * 100.0 * scale_factor;
+                let size = 2.0 * scale_factor;
                 draw_circle(x, y, size, Color::new(0.3, 0.2, 0.4, 0.3));
             }
         }
 
         let title = "BAS VEEG ARC";
-        let title_size = 100.0;
+        let title_size = (80.0 * scale_factor).min(100.0).max(40.0);
         let title_dims = measure_text(title, None, title_size as u16, 1.0);
         draw_text(
             title,
-            screen_width() * 0.5 - title_dims.width * 0.5,
-            150.0,
+            sw * 0.5 - title_dims.width * 0.5,
+            sh * 0.15,
             title_size,
             WHITE,
         );
 
         let subtitle = "ULTIMATE EDITION";
-        let subtitle_size = 30.0;
+        let subtitle_size = (25.0 * scale_factor).min(30.0).max(15.0);
         let subtitle_dims = measure_text(subtitle, None, subtitle_size as u16, 1.0);
         draw_text(
             subtitle,
-            screen_width() * 0.5 - subtitle_dims.width * 0.5,
-            200.0,
+            sw * 0.5 - subtitle_dims.width * 0.5,
+            sh * 0.2,
             subtitle_size,
             Color::new(0.8, 0.8, 0.8, 0.8),
         );
 
+        // Menu options with adaptive positioning
+        let option_start_y = sh * 0.4;
+        let option_spacing = sh * 0.08;
+
         for (i, option) in self.options.iter().enumerate() {
-            let y = 350.0 + i as f32 * 60.0;
-            let size = 40.0;
+            let y = option_start_y + i as f32 * option_spacing;
+            let size = (35.0 * scale_factor).min(40.0).max(20.0);
             let color = if i == self.selected_option {
                 YELLOW
             } else {
@@ -84,14 +95,14 @@ impl State for MenuState {
             };
 
             let text_dims = measure_text(option, None, size as u16, 1.0);
-            let x = screen_width() * 0.5 - text_dims.width * 0.5;
+            let x = sw * 0.5 - text_dims.width * 0.5;
 
             if i == self.selected_option {
                 draw_rectangle(
-                    x - 20.0,
+                    x - 20.0 * scale_factor,
                     y - size * 0.8,
-                    text_dims.width + 40.0,
-                    size + 10.0,
+                    text_dims.width + 40.0 * scale_factor,
+                    size + 10.0 * scale_factor,
                     Color::new(1.0, 1.0, 0.0, 0.2),
                 );
             }
@@ -116,8 +127,9 @@ impl State for MenuState {
         if is_key_pressed(KeyCode::J) || is_key_pressed(KeyCode::Enter) {
             match self.selected_option {
                 0 => self.transition_to = Some(StateType::CharacterSelect),
-                1 => self.transition_to = Some(StateType::Controls),
-                2 => std::process::exit(0),
+                1 => self.transition_to = Some(StateType::EndlessMode),
+                2 => self.transition_to = Some(StateType::Controls),
+                3 => std::process::exit(0),
                 _ => {}
             }
         }
