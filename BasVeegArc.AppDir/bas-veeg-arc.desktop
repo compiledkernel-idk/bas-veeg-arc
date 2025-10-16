@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Bas Veeg Arc
+Comment=Fast-paced beat 'em up game built with Rust and Macroquad
+Exec=bas-veeg-arc
+Icon=bas-veeg-arc
+Categories=Game;
+Terminal=false

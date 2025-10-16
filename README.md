@@ -1,6 +1,6 @@
 # Bas Veeg Arc
 
-**Version 0.3.0** - A fast-paced beat 'em up game built with Rust and Macroquad
+**Version 0.4.0** - A fast-paced beat 'em up game built with Rust and Macroquad
 
 ## About
 
