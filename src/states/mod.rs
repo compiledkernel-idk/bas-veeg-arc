@@ -8,6 +8,7 @@ pub mod menu;
 pub mod results;
 pub mod settings;
 pub mod training;
+pub mod tutorial_system;
 pub mod versus;
 
 use std::collections::VecDeque;

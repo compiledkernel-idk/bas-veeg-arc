@@ -843,8 +843,6 @@ impl CombatIntegrationManager {
         // Load movesets for all characters
         for char_type in [
             CharacterType::KeizerBomTaha,
-            CharacterType::PrincipalVanDerBerg,
-            CharacterType::LunchroomLadyPetra,
         ] {
             character_movesets.insert(char_type, CharacterMoveset::for_character(char_type));
         }

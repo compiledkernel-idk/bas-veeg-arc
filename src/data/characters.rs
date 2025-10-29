@@ -14,8 +14,7 @@ pub enum CharacterId {
     Jad,
     Umut,
     KeizerBomTaha,      // Military commander with plane mechanics
-    PrincipalVanDerBerg, // Tank character with authority abilities
-    LunchroomLadyPetra,  // Control character with food debuffs
+    GoonLordTobese,     // Special milk power
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -95,19 +94,13 @@ const KEIZER_BOM_TAHA_EFFECTS: &[AbilityEffect] = &[
     AbilityEffect::PlaneSummon,     // Enter plane mode with bombs
 ];
 
-const PRINCIPAL_VAN_DER_BERG_EFFECTS: &[AbilityEffect] = &[
-    AbilityEffect::ArmorBoost(0.6), // 60% damage reduction
-    AbilityEffect::Stun(2.5),        // Stuns nearby enemies for 2.5s
-    AbilityEffect::DamageBoost(1.8), // Moderate damage increase
+const GOON_LORD_TOBESE_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::HealthBoost(40.0),  // Special Milk gives health
+    AbilityEffect::SpeedBoost(1.8),    // Milk power speed
+    AbilityEffect::DamageBoost(1.6),   // Milk power strength
 ];
 
-const LUNCHROOM_LADY_PETRA_EFFECTS: &[AbilityEffect] = &[
-    AbilityEffect::Slow(0.5, 4.0),   // Slows enemies by 50% for 4s
-    AbilityEffect::FireDamage(6.0, 5.0), // Hot soup DOT
-    AbilityEffect::SplashDamage(35.0, 120.0), // Food splash
-];
-
-pub const CHARACTERS: [Character; 14] = [
+pub const CHARACTERS: [Character; 13] = [
     Character {
         id: CharacterId::Berkay,
         name: "Berkay",
@@ -210,28 +203,19 @@ pub const CHARACTERS: [Character; 14] = [
     Character {
         id: CharacterId::KeizerBomTaha,
         name: "Keizer Bom Taha",
-        ability_name: "Airborne Assault",
-        voice_line: "PREPARE FOR AERIAL BOMBARDMENT!",
+        ability_name: "Lucht Aanval",
+        voice_line: "ik gooi bommen!",
         effects: KEIZER_BOM_TAHA_EFFECTS,
         duration: 15.0, // Max plane duration
         cooldown: 25.0,  // Long cooldown for powerful ability
     },
     Character {
-        id: CharacterId::PrincipalVanDerBerg,
-        name: "Principal Van Der Berg",
-        ability_name: "Executive Order",
-        voice_line: "TO THE PRINCIPAL'S OFFICE! NOW!",
-        effects: PRINCIPAL_VAN_DER_BERG_EFFECTS,
-        duration: 8.0,
-        cooldown: 18.0,
-    },
-    Character {
-        id: CharacterId::LunchroomLadyPetra,
-        name: "Lunchroom Lady Petra",
-        ability_name: "Food Fight",
-        voice_line: "EET JE BORD LEEG!",
-        effects: LUNCHROOM_LADY_PETRA_EFFECTS,
-        duration: 6.0,
+        id: CharacterId::GoonLordTobese,
+        name: "Goon Lord Tobese",
+        ability_name: "Speciale Melk",
+        voice_line: "Ik hou van padme!",
+        effects: GOON_LORD_TOBESE_EFFECTS,
+        duration: 7.0,
         cooldown: 14.0,
     },
 ];
@@ -259,8 +243,7 @@ impl CharacterId {
             CharacterId::Jad => CT::Berkay,    // Temporarily map to existing type
             CharacterId::Umut => CT::Nitin,    // Temporarily map to existing type
             CharacterId::KeizerBomTaha => CT::KeizerBomTaha,
-            CharacterId::PrincipalVanDerBerg => CT::PrincipalVanDerBerg,
-            CharacterId::LunchroomLadyPetra => CT::LunchroomLadyPetra,
+            CharacterId::GoonLordTobese => CT::Luca, // Temporarily map to existing type
         }
     }
 }

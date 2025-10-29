@@ -6,6 +6,7 @@ pub mod combo_system;
 pub mod hitbox;
 pub mod hurtbox;
 pub mod inputs;
+pub mod integration;
 pub mod meter;
 pub mod plane_system;
 pub mod supers;
@@ -19,4 +20,5 @@ pub use combo_system::{ComboSystem, StyleRank, ComboFinisher};
 pub use plane_system::{PlaneSystem, BombPattern};
 pub use boss_system::{BossManager, BossType};
 pub use character_movesets::{CharacterMoveset, CharacterStats, MoveData, MoveId, SpecialTrait};
+pub use integration::{CombatIntegrationManager, CharacterCombatState, TrainingMode, ReplaySystem};
 // Other modules available but not re-exported to reduce unused warnings

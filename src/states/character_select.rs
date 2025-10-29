@@ -42,6 +42,8 @@ impl CharacterSelectState {
             CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 1.0), // Brown (lahmacun color)
             CharacterId::Jad => Color::new(1.0, 0.0, 0.0, 1.0), // Red (KFC rage)
             CharacterId::Umut => Color::new(0.1, 0.8, 0.2, 1.0), // Green (Terraria theme)
+            CharacterId::KeizerBomTaha => Color::new(0.2, 0.6, 0.3, 1.0), // Military green
+            CharacterId::GoonLordTobese => Color::new(1.0, 1.0, 1.0, 1.0), // White (milk)
         }
     }
 
@@ -58,6 +60,8 @@ impl CharacterSelectState {
             CharacterId::EfeAbi => "Lahmacun-powered warrior. Gains incredible speed and power from Turkish street food.",
             CharacterId::Jad => "KFC rage incarnate. When triggered, unleashes chicken-fueled fury for massive boosts.",
             CharacterId::Umut => "Master builder from Terraria. Enters his building arc for serious damage boosts.",
+            CharacterId::KeizerBomTaha => "Military commander with aerial superiority. Summons plane for devastating bomb barrages.",
+            CharacterId::GoonLordTobese => "Master of Special Milk power. Balanced fighter with strong buffs from dairy supremacy.",
         }
     }
 
@@ -103,6 +107,8 @@ impl CharacterSelectState {
             CharacterId::EfeAbi => (Color::new(0.90, 0.75, 0.60, 1.0), 0.18, 1.1, 1.0), // Light brown skin
             CharacterId::Jad => (Color::new(1.0, 0.85, 0.70, 1.0), 0.18, 1.2, 1.0), // Normal skin, wider build
             CharacterId::Umut => (Color::new(1.0, 0.85, 0.70, 1.0), 0.18, 1.0, 1.0), // Normal skin
+            CharacterId::KeizerBomTaha => (Color::new(0.85, 0.75, 0.65, 1.0), 0.19, 1.1, 1.1), // Military
+            CharacterId::GoonLordTobese => (Color::new(1.0, 0.95, 0.90, 1.0), 0.18, 1.0, 1.0), // White/pale skin
         };
 
         // Head (skin color)
@@ -250,6 +256,25 @@ impl CharacterSelectState {
                     let highlight_y = figure_y - head_radius * 0.6 + angle.sin() * head_radius * 0.3;
                     draw_circle(highlight_x, highlight_y, head_radius * 0.2, green_tint);
                 }
+            }
+            CharacterId::KeizerBomTaha => {
+                // Military style short hair
+                draw_circle(
+                    x,
+                    figure_y - head_radius * 0.3,
+                    head_radius * 0.9,
+                    black_hair,
+                );
+            }
+            CharacterId::GoonLordTobese => {
+                // Blonde hair
+                let blonde_hair = Color::new(0.95, 0.87, 0.51, 1.0);
+                draw_circle(
+                    x,
+                    figure_y - head_radius * 0.5,
+                    head_radius * 1.0,
+                    blonde_hair,
+                );
             }
         }
 
@@ -658,6 +683,24 @@ impl State for CharacterSelectState {
                 }
                 crate::data::characters::AbilityEffect::ProjectileDamage(dmg) => {
                     format!("PROJ {:.0}dmg", dmg)
+                }
+                crate::data::characters::AbilityEffect::PlaneSummon => {
+                    "PLANE MODE".to_string()
+                }
+                crate::data::characters::AbilityEffect::ArmorBoost(reduction) => {
+                    format!("ARMOR {:.0}%", reduction * 100.0)
+                }
+                crate::data::characters::AbilityEffect::Stun(duration) => {
+                    format!("STUN {:.1}s", duration)
+                }
+                crate::data::characters::AbilityEffect::Slow(amount, duration) => {
+                    format!("SLOW {:.0}% {:.1}s", amount * 100.0, duration)
+                }
+                crate::data::characters::AbilityEffect::DamageReflect(percent) => {
+                    format!("REFLECT {:.0}%", percent * 100.0)
+                }
+                crate::data::characters::AbilityEffect::Invincibility => {
+                    "INVINCIBLE".to_string()
                 }
             };
 

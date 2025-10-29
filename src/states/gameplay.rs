@@ -1288,6 +1288,8 @@ impl State for GameplayState {
                             CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 0.4 * pulse as f32), // Brown
                             CharacterId::Jad => Color::new(1.0, 0.0, 0.0, 0.4 * pulse as f32), // Red
                             CharacterId::Umut => Color::new(0.5, 0.0, 1.0, 0.4 * pulse as f32), // Purple for Terraria
+                            CharacterId::KeizerBomTaha => Color::new(0.2, 0.6, 0.3, 0.4 * pulse as f32), // Green
+                            CharacterId::GoonLordTobese => Color::new(1.0, 1.0, 1.0, 0.4 * pulse as f32), // White (milk)
                         };
                         // Draw multiple pulsing rings for aura effect
                         for i in 0..4 {
@@ -2541,6 +2543,7 @@ impl GameplayState {
             CharacterType::Coach => "Coach".to_string(),
             CharacterType::Bastiaan => "BOSS BASTIAAN".to_string(),
             CharacterType::KeizerBomTaha => "Keizer Bom Taha".to_string(),
+            CharacterType::KeizerBomTahaBoss => "BOSS KEIZER BOM TAHA".to_string(),
             CharacterType::Mees => "BOSS MEES - PITA SIRRACHA".to_string(),
         }
     }
@@ -3540,6 +3543,8 @@ impl GameplayState {
                 CharacterId::EfeAbi => "efeabi",
                 CharacterId::Jad => "jad",
                 CharacterId::Umut => "umut",
+                CharacterId::KeizerBomTaha => "keizer",
+                CharacterId::GoonLordTobese => "tobese",
             }
         } else {
             match &fighter.character_type {
@@ -4797,6 +4802,23 @@ impl GameplayState {
                     Color::new(0.5, 0.5, 0.5, 1.0),
                 );
             }
+            CharacterType::KeizerBomTahaBoss => {
+                // Boss version - same as player version for now
+                draw_rectangle(
+                    pos.x - 50.0,
+                    pos.y - 30.0,
+                    100.0,
+                    20.0,
+                    Color::new(0.7, 0.7, 0.75, 1.0),
+                );
+                draw_rectangle(
+                    pos.x - 30.0,
+                    pos.y - 35.0,
+                    60.0,
+                    10.0,
+                    Color::new(0.75, 0.75, 0.8, 1.0),
+                );
+            }
             CharacterType::Mees => {
                 // Mees - blonde boy with medium hair who throws pita sirrachas
                 // HEAD - blonde hair
@@ -4874,6 +4896,8 @@ impl GameplayState {
             CharacterId::EfeAbi => (Color::new(0.90, 0.75, 0.60, 1.0), 26.0, 1.1, 8), // Light brown skin
             CharacterId::Jad => (Color::new(1.0, 0.85, 0.70, 1.0), 26.0, 1.2, 9), // Normal skin, wider build
             CharacterId::Umut => (Color::new(0.95, 0.80, 0.65, 1.0), 25.0, 1.1, 10), // Slightly tan, medium build
+            CharacterId::KeizerBomTaha => (Color::new(0.85, 0.75, 0.65, 1.0), 28.0, 1.2, 11), // Military commander
+            CharacterId::GoonLordTobese => (Color::new(1.0, 0.95, 0.90, 1.0), 25.0, 1.0, 12), // White/pale skin
         };
 
         let brown_hair = Color::new(0.3, 0.2, 0.1, 1.0);
@@ -5039,6 +5063,8 @@ impl GameplayState {
             CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 1.0), // Brown (lahmacun color)
             CharacterId::Jad => Color::new(0.8, 0.0, 0.0, 1.0), // Red (KFC rage)
             CharacterId::Umut => Color::new(0.4, 0.2, 0.6, 1.0), // Purple (Terraria)
+            CharacterId::KeizerBomTaha => Color::new(0.2, 0.4, 0.2, 1.0), // Military green
+            CharacterId::GoonLordTobese => Color::new(0.95, 0.95, 0.95, 1.0), // White (milk)
         };
 
         draw_rectangle(
@@ -5149,6 +5175,8 @@ impl GameplayState {
                 CharacterId::EfeAbi => Color::new(0.7, 0.3, 0.1, 0.8), // Brown
                 CharacterId::Jad => Color::new(1.0, 0.0, 0.0, 0.8), // Red
                 CharacterId::Umut => Color::new(0.6, 0.2, 1.0, 0.8), // Purple
+                CharacterId::KeizerBomTaha => Color::new(0.0, 0.8, 0.4, 0.8), // Green
+                CharacterId::GoonLordTobese => Color::new(1.0, 1.0, 1.0, 0.8), // White (milk)
             };
             let slash_size = 30.0 + attack_phase * 20.0;
             draw_circle(

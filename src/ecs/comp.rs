@@ -60,7 +60,7 @@ pub struct Fighter {
 
 impl Component for Fighter {}
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CharacterType {
     // Playable characters
     Bas,
@@ -71,8 +71,6 @@ pub enum CharacterType {
     Nitin,
     YigitBaba,
     KeizerBomTaha,           // Playable military commander with plane
-    PrincipalVanDerBerg,     // Playable tank character
-    LunchroomLadyPetra,      // Playable control character
     // NPCs and enemies
     Wolters,
     PrefectA,

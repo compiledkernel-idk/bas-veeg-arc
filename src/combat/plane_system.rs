@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 
 /// Plane system for Keizer Bom Taha character
+#[derive(Clone, Debug)]
 pub struct PlaneSystem {
     pub in_plane: bool,
     pub plane_health: f32,
@@ -27,6 +28,7 @@ pub struct PlaneSystem {
 }
 
 /// Bomb projectile
+#[derive(Clone, Debug)]
 pub struct Bomb {
     pub position: Vec2,
     pub velocity: Vec2,

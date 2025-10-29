@@ -446,7 +446,7 @@ impl ChallengeManager {
 
         // Simple shuffle
         for i in 0..indices.len() {
-            let j = (rand::gen_range(0.0, 1.0) * (indices.len() - i) as f32) as usize + i;
+            let j = (macroquad::rand::gen_range(0.0, 1.0) * (indices.len() - i) as f32) as usize + i;
             indices.swap(i, j);
         }
 
