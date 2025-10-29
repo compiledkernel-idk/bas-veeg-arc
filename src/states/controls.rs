@@ -46,8 +46,38 @@ impl State for ControlsState {
         let section_spacing = 60.0;
         let mut current_y = start_y;
 
-        // Movement Section
-        self.draw_section_header("MOVEMENT", current_y, Color::new(0.3, 0.8, 1.0, 1.0));
+        // Co-op Controls Section
+        self.draw_section_header("CO-OP MODE (2 PLAYERS)", current_y, Color::new(1.0, 0.6, 0.2, 1.0));
+        current_y += 40.0;
+        draw_text(
+            "PLAYER 1 (Blue):",
+            220.0,
+            current_y,
+            24.0,
+            Color::new(0.2, 0.5, 1.0, 1.0),
+        );
+        current_y += 35.0;
+        current_y = self.draw_keybind("WASD", "Move", current_y);
+        current_y = self.draw_keybind("J", "Attack", current_y);
+        current_y = self.draw_keybind("K", "Heavy Attack", current_y);
+        current_y = self.draw_keybind("E", "Ability", current_y);
+        current_y += 20.0;
+        draw_text(
+            "PLAYER 2 (Red):",
+            220.0,
+            current_y,
+            24.0,
+            Color::new(1.0, 0.2, 0.2, 1.0),
+        );
+        current_y += 35.0;
+        current_y = self.draw_keybind("Arrow Keys", "Move", current_y);
+        current_y = self.draw_keybind("Numpad 1 / Enter", "Attack", current_y);
+        current_y = self.draw_keybind("Numpad 2 / Backspace", "Heavy Attack", current_y);
+        current_y = self.draw_keybind("Numpad 3 / Right Shift", "Ability", current_y);
+        current_y += section_spacing;
+
+        // Movement Section (Single Player)
+        self.draw_section_header("SINGLE PLAYER MOVEMENT", current_y, Color::new(0.3, 0.8, 1.0, 1.0));
         current_y += 40.0;
         current_y = self.draw_keybind("W / Up Arrow", "Move Up", current_y);
         current_y = self.draw_keybind("S / Down Arrow", "Move Down", current_y);
@@ -144,7 +174,7 @@ impl State for ControlsState {
         }
         if is_key_down(KeyCode::Down) || is_key_down(KeyCode::S) {
             self.scroll_offset += 5.0;
-            self.scroll_offset = self.scroll_offset.min(400.0);
+            self.scroll_offset = self.scroll_offset.min(600.0);
         }
 
         // Go back

@@ -151,6 +151,14 @@ impl EndlessState {
                 team: Team::Player,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
             },
         );
 
@@ -259,6 +267,14 @@ impl EndlessState {
                 team: Team::Enemy,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
             },
         );
 

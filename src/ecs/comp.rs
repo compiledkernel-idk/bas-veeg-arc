@@ -56,9 +56,29 @@ pub struct Fighter {
     pub team: Team,
     pub consecutive_hits_taken: u32,
     pub hit_decay_timer: f32,
+    // New combat system fields
+    pub combo_chain: u32,           // Current position in combo chain (0-2 for 3-hit)
+    pub combo_window_timer: f32,    // Time left to continue combo
+    pub can_cancel: bool,           // Whether current attack can be canceled
+    pub attack_startup: f32,        // Startup frames remaining
+    pub attack_recovery: f32,       // Recovery frames remaining
+    pub is_blocking: bool,          // Is currently holding block
+    pub parry_window: f32,          // Time left for perfect parry
 }
 
 impl Component for Fighter {}
+
+#[derive(Clone, Debug)]
+pub struct Stamina {
+    pub current: f32,
+    pub maximum: f32,
+    pub regen_rate: f32,           // Stamina per second
+    pub regen_delay: f32,           // Time before regen starts after use
+    pub regen_delay_timer: f32,     // Current delay timer
+    pub exhausted: bool,            // True when at 0 stamina
+}
+
+impl Component for Stamina {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CharacterType {

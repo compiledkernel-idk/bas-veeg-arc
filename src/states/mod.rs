@@ -1,12 +1,14 @@
 pub mod boot;
 pub mod character_select;
 pub mod controls;
+pub mod coop_select;
 pub mod cutscene;
 pub mod endless;
 pub mod gameplay;
 pub mod menu;
 pub mod results;
 pub mod settings;
+pub mod skill_tree_ui;
 pub mod training;
 pub mod tutorial_system;
 pub mod versus;
@@ -27,6 +29,8 @@ pub enum StateType {
     Settings,
     EndlessMode,
     CoopMode,
+    CoopSelect,
+    SkillTree,
 }
 
 pub trait State {
@@ -153,6 +157,8 @@ impl StateManager {
             StateType::Results => Box::new(results::ResultsState::new()),
             StateType::Settings => Box::new(settings::SettingsState::new()),
             StateType::EndlessMode => Box::new(endless::EndlessState::new()),
+            StateType::CoopSelect => Box::new(coop_select::CoopSelectState::new()),
+            StateType::SkillTree => Box::new(skill_tree_ui::SkillTreeUIState::new()),
             StateType::CoopMode => {
                 // Create gameplay with co-op enabled
                 let mut state = gameplay::GameplayState::new();

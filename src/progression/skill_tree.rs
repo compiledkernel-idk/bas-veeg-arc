@@ -90,18 +90,20 @@ impl SkillTreeManager {
 
     /// Initialize skill trees for all characters
     fn init_all_character_trees(&mut self) {
-        // Create tree for Bas
+        // Create tree for all characters
         self.trees.insert(CharacterId::Bas, Self::create_bas_tree());
-
-        // Create tree for Berkay
         self.trees.insert(CharacterId::Berkay, Self::create_berkay_tree());
-
-        // Create tree for Luca
         self.trees.insert(CharacterId::Luca, Self::create_luca_tree());
-
-        // Add more characters as needed
-        // self.trees.insert(CharacterId::Gefferinho, Self::create_gefferinho_tree());
-        // etc.
+        self.trees.insert(CharacterId::Gefferinho, Self::create_gefferinho_tree());
+        self.trees.insert(CharacterId::Hadi, Self::create_hadi_tree());
+        self.trees.insert(CharacterId::Nitin, Self::create_nitin_tree());
+        self.trees.insert(CharacterId::PalaBaba, Self::create_pala_baba_tree());
+        self.trees.insert(CharacterId::Fufinho, Self::create_fufinho_tree());
+        self.trees.insert(CharacterId::EfeAbi, Self::create_efe_abi_tree());
+        self.trees.insert(CharacterId::Jad, Self::create_jad_tree());
+        self.trees.insert(CharacterId::Umut, Self::create_umut_tree());
+        self.trees.insert(CharacterId::KeizerBomTaha, Self::create_keizer_tree());
+        self.trees.insert(CharacterId::GoonLordTobese, Self::create_tobese_tree());
 
         // Initialize skill points (0 for all characters)
         for character in self.trees.keys() {
@@ -529,6 +531,235 @@ impl SkillTreeManager {
         }
     }
 
+    /// Create Gefferinho's skill tree
+    fn create_gefferinho_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::Gefferinho, "Rage Master", "Channel pure rage into power", "Defensive Fury", "Angry resilience", "Rapid Rage", "Speed through anger")
+    }
+
+    /// Create Hadi's skill tree
+    fn create_hadi_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::Hadi, "Dubai Power", "Emirates speed and strength", "Desert Shield", "Endure like the desert", "Sandstorm", "Swift as the wind")
+    }
+
+    /// Create Nitin's skill tree
+    fn create_nitin_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::Nitin, "Fire Mastery", "Master the flames", "Heat Resistance", "Withstand the inferno", "Burning Speed", "Move like wildfire")
+    }
+
+    /// Create Pala Baba's skill tree
+    fn create_pala_baba_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::PalaBaba, "Sivas Strength", "Turkish warrior power", "Baba Defense", "Unbreakable will", "Turkish Speed", "Lightning fast")
+    }
+
+    /// Create Fufinho's skill tree
+    fn create_fufinho_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::Fufinho, "Fufu Thrower", "Master the fufu throw", "Fufu Armor", "Dense like fufu", "Fufu Agility", "Light on your feet")
+    }
+
+    /// Create Efe Abi's skill tree
+    fn create_efe_abi_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::EfeAbi, "Lahmacun Power", "Turkish pizza strength", "Turkish Toughness", "Hard as lahmacun crust", "Turkish Reflexes", "Quick reactions")
+    }
+
+    /// Create Jad's skill tree
+    fn create_jad_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::Jad, "KFC Rage", "Chicken-powered fury", "Fried Defense", "Crispy protection", "Fast Food", "Quick like delivery")
+    }
+
+    /// Create Umut's skill tree
+    fn create_umut_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::Umut, "Terraria Arc", "Blocky power", "Armor Crafting", "Craft better defense", "Mining Speed", "Dig faster")
+    }
+
+    /// Create Keizer Bom Taha's skill tree
+    fn create_keizer_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::KeizerBomTaha, "Aerial Bombardment", "Rain destruction from above", "Plane Armor", "Reinforced hull", "Flight Speed", "Faster flying")
+    }
+
+    /// Create Goon Lord Tobese's skill tree
+    fn create_tobese_tree() -> SkillTree {
+        Self::create_generic_tree(CharacterId::GoonLordTobese, "Milk Power", "Special milk strength", "Calcium Bones", "Strong skeleton", "Milk Rush", "Dairy speed boost")
+    }
+
+    /// Create a generic skill tree for characters
+    fn create_generic_tree(
+        character: CharacterId,
+        offense_name: &str,
+        offense_desc: &str,
+        defense_name: &str,
+        defense_desc: &str,
+        utility_name: &str,
+        utility_desc: &str,
+    ) -> SkillTree {
+        let char_id = format!("{:?}", character).to_lowercase();
+
+        SkillTree {
+            character,
+            branch_offense: SkillBranch {
+                name: offense_name.to_string(),
+                description: offense_desc.to_string(),
+                nodes: vec![
+                    SkillNode {
+                        id: format!("{}_off_1", char_id),
+                        name: "Power Strike".to_string(),
+                        description: "Increase damage by 6% per level".to_string(),
+                        tier: 1,
+                        max_level: 5,
+                        current_level: 0,
+                        skill_point_cost: 1,
+                        prerequisites: vec![],
+                        skill_type: SkillType::DamageIncrease(6.0),
+                        unlocked: true,
+                    },
+                    SkillNode {
+                        id: format!("{}_off_2", char_id),
+                        name: "Critical Eye".to_string(),
+                        description: "Gain 3% critical hit chance per level".to_string(),
+                        tier: 1,
+                        max_level: 5,
+                        current_level: 0,
+                        skill_point_cost: 1,
+                        prerequisites: vec![],
+                        skill_type: SkillType::CriticalChance(3.0),
+                        unlocked: true,
+                    },
+                    SkillNode {
+                        id: format!("{}_off_3", char_id),
+                        name: "Swift Strikes".to_string(),
+                        description: "Increase attack speed by 10% per level".to_string(),
+                        tier: 2,
+                        max_level: 3,
+                        current_level: 0,
+                        skill_point_cost: 2,
+                        prerequisites: vec![format!("{}_off_1", char_id)],
+                        skill_type: SkillType::AttackSpeed(10.0),
+                        unlocked: false,
+                    },
+                    SkillNode {
+                        id: format!("{}_off_4", char_id),
+                        name: "Deadly Force".to_string(),
+                        description: "Critical hits deal 25% more damage per level".to_string(),
+                        tier: 2,
+                        max_level: 3,
+                        current_level: 0,
+                        skill_point_cost: 2,
+                        prerequisites: vec![format!("{}_off_2", char_id)],
+                        skill_type: SkillType::CriticalDamage(25.0),
+                        unlocked: false,
+                    },
+                ],
+            },
+            branch_defense: SkillBranch {
+                name: defense_name.to_string(),
+                description: defense_desc.to_string(),
+                nodes: vec![
+                    SkillNode {
+                        id: format!("{}_def_1", char_id),
+                        name: "Vitality".to_string(),
+                        description: "Increase max health by 8% per level".to_string(),
+                        tier: 1,
+                        max_level: 5,
+                        current_level: 0,
+                        skill_point_cost: 1,
+                        prerequisites: vec![],
+                        skill_type: SkillType::MaxHealthIncrease(8.0),
+                        unlocked: true,
+                    },
+                    SkillNode {
+                        id: format!("{}_def_2", char_id),
+                        name: "Toughness".to_string(),
+                        description: "Reduce incoming damage by 4% per level".to_string(),
+                        tier: 1,
+                        max_level: 5,
+                        current_level: 0,
+                        skill_point_cost: 1,
+                        prerequisites: vec![],
+                        skill_type: SkillType::DamageReduction(4.0),
+                        unlocked: true,
+                    },
+                    SkillNode {
+                        id: format!("{}_def_3", char_id),
+                        name: "Regeneration".to_string(),
+                        description: "Regenerate 2 HP per second per level".to_string(),
+                        tier: 2,
+                        max_level: 3,
+                        current_level: 0,
+                        skill_point_cost: 2,
+                        prerequisites: vec![format!("{}_def_1", char_id)],
+                        skill_type: SkillType::HealthRegen(2.0),
+                        unlocked: false,
+                    },
+                    SkillNode {
+                        id: format!("{}_def_4", char_id),
+                        name: "Iron Skin".to_string(),
+                        description: "Gain 5% dodge chance per level".to_string(),
+                        tier: 2,
+                        max_level: 3,
+                        current_level: 0,
+                        skill_point_cost: 2,
+                        prerequisites: vec![format!("{}_def_2", char_id)],
+                        skill_type: SkillType::DodgeChance(5.0),
+                        unlocked: false,
+                    },
+                ],
+            },
+            branch_utility: SkillBranch {
+                name: utility_name.to_string(),
+                description: utility_desc.to_string(),
+                nodes: vec![
+                    SkillNode {
+                        id: format!("{}_util_1", char_id),
+                        name: "Swiftness".to_string(),
+                        description: "Increase movement speed by 8% per level".to_string(),
+                        tier: 1,
+                        max_level: 5,
+                        current_level: 0,
+                        skill_point_cost: 1,
+                        prerequisites: vec![],
+                        skill_type: SkillType::MovementSpeed(8.0),
+                        unlocked: true,
+                    },
+                    SkillNode {
+                        id: format!("{}_util_2", char_id),
+                        name: "Quick Recovery".to_string(),
+                        description: "Reduce cooldowns by 8% per level".to_string(),
+                        tier: 1,
+                        max_level: 5,
+                        current_level: 0,
+                        skill_point_cost: 1,
+                        prerequisites: vec![],
+                        skill_type: SkillType::CooldownReduction(8.0),
+                        unlocked: true,
+                    },
+                    SkillNode {
+                        id: format!("{}_util_3", char_id),
+                        name: "Vampirism".to_string(),
+                        description: "Gain 4% lifesteal per level".to_string(),
+                        tier: 2,
+                        max_level: 3,
+                        current_level: 0,
+                        skill_point_cost: 2,
+                        prerequisites: vec![format!("{}_util_1", char_id)],
+                        skill_type: SkillType::Lifesteal(4.0),
+                        unlocked: false,
+                    },
+                    SkillNode {
+                        id: format!("{}_util_4", char_id),
+                        name: "Fortune".to_string(),
+                        description: "Increase currency gain by 15% per level".to_string(),
+                        tier: 2,
+                        max_level: 3,
+                        current_level: 0,
+                        skill_point_cost: 2,
+                        prerequisites: vec![format!("{}_util_2", char_id)],
+                        skill_type: SkillType::ResourceGain(15.0),
+                        unlocked: false,
+                    },
+                ],
+            },
+        }
+    }
+
     /// Get skill tree for character
     pub fn get_tree(&self, character: CharacterId) -> Option<&SkillTree> {
         self.trees.get(&character)
@@ -602,6 +833,16 @@ impl SkillTreeManager {
     /// Get available skill points for a character
     pub fn get_skill_points(&self, character: CharacterId) -> u32 {
         self.skill_points.get(&character).copied().unwrap_or(0)
+    }
+
+    /// Alias for get_skill_points - get available skill points
+    pub fn get_available_points(&self, character: CharacterId) -> u32 {
+        self.get_skill_points(character)
+    }
+
+    /// Upgrade a skill (alias for unlock_skill that returns bool)
+    pub fn upgrade_skill(&mut self, character: CharacterId, skill_id: &str) -> bool {
+        self.unlock_skill(character, skill_id).is_ok()
     }
 
     /// Reset skill tree for a character (costs currency)

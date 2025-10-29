@@ -231,7 +231,7 @@ impl EnhancedVFXSystem {
                 velocity: Vec2::new(angle.cos() * speed, angle.sin() * speed),
                 lifetime: 0.0,
                 max_lifetime: rand::gen_range(0.1, lifetime),
-                size: rand::gen_range(2.0, 5.0) * intensity,
+                size: rand::gen_range(0.5, 1.5) * intensity,
                 color: base_color,
             });
         }
@@ -275,11 +275,11 @@ impl EnhancedVFXSystem {
             self.impact_lines.push_back(ImpactLine {
                 position,
                 direction: dir,
-                length: rand::gen_range(40.0, 120.0) * intensity,
-                thickness: rand::gen_range(2.0, 5.0) * intensity,
+                length: rand::gen_range(8.0, 20.0) * intensity,
+                thickness: rand::gen_range(0.5, 1.5) * intensity,
                 lifetime: 0.0,
                 max_lifetime: 0.15,
-                color: Color::new(1.0, 1.0, 1.0, 0.8),
+                color: Color::new(1.0, 1.0, 1.0, 0.6),
             });
         }
     }
@@ -629,12 +629,12 @@ impl EnhancedVFXSystem {
 
             // Draw impact flash
             let alpha = 1.0 - (impact.lifetime / impact.max_lifetime);
-            let size = 30.0 * impact.intensity * (1.0 + impact.lifetime * 5.0);
+            let size = 6.0 * impact.intensity * (1.0 + impact.lifetime * 1.5);
             draw_circle(
                 impact.position.x,
                 impact.position.y,
                 size,
-                Color::new(1.0, 1.0, 1.0, alpha * 0.4),
+                Color::new(1.0, 1.0, 1.0, alpha * 0.2),
             );
         }
 
@@ -704,7 +704,7 @@ impl EnhancedVFXSystem {
                 format!("{:.0}", num.damage)
             };
 
-            let font_size = 24.0 * num.scale;
+            let font_size = 12.0 * num.scale;
             let text_size = measure_text(&text, None, font_size as u16, 1.0);
 
             // Outline

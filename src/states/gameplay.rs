@@ -9,8 +9,8 @@ use crate::data::{AbilityState, CharacterId, ShopManager, UpgradeId};
 use crate::ecs::System as EcsSystem;
 use crate::ecs::{
     AIBehavior, AIController, Bomb, BossPhase, CharacterType, EntityId, Fighter, FighterState,
-    Health, HitboxComponent, HurtboxComponent, Particle, ParticleType, Team, Transform, Velocity,
-    World,
+    Health, HitboxComponent, HurtboxComponent, Particle, ParticleType, Stamina, Team, Transform,
+    Velocity, World,
 };
 use crate::ecs::{
     AISystem, AnimationSystem, CombatSystem, MovementSystem, ParticleSystem, PhysicsSystem,
@@ -25,6 +25,7 @@ use macroquad::prelude::*;
 pub struct GameplayState {
     world: World,
     player_entity: Option<EntityId>,
+    player2_entity: Option<EntityId>, // For co-op player 2
     ally_entities: Vec<EntityId>,
     ally_roster: Vec<CharacterType>,
     enemy_entities: Vec<EntityId>,
@@ -176,6 +177,7 @@ impl GameplayState {
         Self {
             world: World::new(),
             player_entity: None,
+            player2_entity: None,
             ally_entities: Vec::new(),
             ally_roster: vec![
                 CharacterType::Luca,
@@ -304,10 +306,143 @@ impl GameplayState {
                 team: Team::Player,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            entity,
+            Stamina {
+                current: 100.0,
+                maximum: 100.0,
+                regen_rate: 40.0,
+                regen_delay: 0.5,
+                regen_delay_timer: 0.0,
+                exhausted: false,
             },
         );
 
         self.player_entity = Some(entity);
+    }
+
+    fn spawn_coop_players(&mut self, player_chars: Vec<CharacterId>) {
+        // Spawn multiple players for co-op
+        for (i, &char_id) in player_chars.iter().enumerate() {
+            let entity = self.world.create_entity();
+
+            // Position players side by side
+            let x_offset = 200.0 + (i as f32 * 150.0);
+
+            self.world.add_component(
+                entity,
+                Transform {
+                    position: Vec2::new(x_offset, 500.0),
+                    rotation: 0.0,
+                    scale: Vec2::ONE,
+                },
+            );
+
+            self.world.add_component(
+                entity,
+                Velocity {
+                    linear: Vec2::ZERO,
+                    angular: 0.0,
+                },
+            );
+
+            self.world.add_component(
+                entity,
+                Health {
+                    current: self.player_max_health,
+                    maximum: self.player_max_health,
+                    armor: 0.0,
+                },
+            );
+
+            self.world.add_component(
+                entity,
+                HurtboxComponent {
+                    hurtbox: Hurtbox::new_standing(),
+                    active: true,
+                },
+            );
+
+            self.world.add_component(
+                entity,
+                HitboxComponent {
+                    hitbox: Hitbox::new_light(),
+                    active: false,
+                    hits_registered: Vec::new(),
+                },
+            );
+
+            // Convert CharacterId to CharacterType
+            let character_type = char_id.to_character_type();
+
+            self.world.add_component(
+                entity,
+                Fighter {
+                    character_type,
+                    state: FighterState::Idle,
+                    combo_counter: 0,
+                    meter: 0.0,
+                    max_meter: 100.0,
+                    hitstun: 0.0,
+                    blockstun: 0.0,
+                    invulnerable: false,
+                    facing: 1.0,
+                    attack_timer: 0.0,
+                    team: Team::Player,
+                    consecutive_hits_taken: 0,
+                    hit_decay_timer: 0.0,
+                    // New combat system fields
+                    combo_chain: 0,
+                    combo_window_timer: 0.0,
+                    can_cancel: true,
+                    attack_startup: 0.0,
+                    attack_recovery: 0.0,
+                    is_blocking: false,
+                    parry_window: 0.0,
+                },
+            );
+
+            self.world.add_component(
+                entity,
+                Stamina {
+                    current: 100.0,
+                    maximum: 100.0,
+                    regen_rate: 40.0,
+                    regen_delay: 0.5,
+                    regen_delay_timer: 0.0,
+                    exhausted: false,
+                },
+            );
+
+            // Set first player as main player, second as player 2
+            if i == 0 {
+                self.player_entity = Some(entity);
+                self.selected_character = char_id;
+                self.ability_state = AbilityState::new(char_id);
+            } else if i == 1 {
+                // Second player is player 2 (not AI ally)
+                self.player2_entity = Some(entity);
+            } else {
+                // Any additional players become AI allies
+                self.ally_entities.push(entity);
+            }
+        }
+
+        // Enable co-op systems
+        if player_chars.len() > 1 {
+            self.enable_coop(player_chars.len());
+        }
     }
 
     fn spawn_big_boss(&mut self) {
@@ -372,6 +507,26 @@ impl GameplayState {
                 team: Team::Enemy,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            Stamina {
+                current: 150.0,
+                maximum: 150.0,
+                regen_rate: 50.0,
+                regen_delay: 0.3,
+                regen_delay_timer: 0.0,
+                exhausted: false,
             },
         );
 
@@ -449,6 +604,26 @@ impl GameplayState {
                 team: Team::Enemy,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            keizer_entity,
+            Stamina {
+                current: 120.0,
+                maximum: 120.0,
+                regen_rate: 45.0,
+                regen_delay: 0.4,
+                regen_delay_timer: 0.0,
+                exhausted: false,
             },
         );
 
@@ -563,6 +738,26 @@ impl GameplayState {
                 team: Team::Enemy,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            entity,
+            Stamina {
+                current: 100.0,
+                maximum: 100.0,
+                regen_rate: 40.0,
+                regen_delay: 0.5,
+                regen_delay_timer: 0.0,
+                exhausted: false,
             },
         );
 
@@ -665,6 +860,26 @@ impl GameplayState {
                 team: Team::Enemy,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            boss_entity,
+            Stamina {
+                current: 150.0,
+                maximum: 150.0,
+                regen_rate: 50.0,
+                regen_delay: 0.3,
+                regen_delay_timer: 0.0,
+                exhausted: false,
             },
         );
 
@@ -751,6 +966,26 @@ impl GameplayState {
                 team: Team::Ally,
                 consecutive_hits_taken: 0,
                 hit_decay_timer: 0.0,
+                // New combat system fields
+                combo_chain: 0,
+                combo_window_timer: 0.0,
+                can_cancel: true,
+                attack_startup: 0.0,
+                attack_recovery: 0.0,
+                is_blocking: false,
+                parry_window: 0.0,
+            },
+        );
+
+        self.world.add_component(
+            entity,
+            Stamina {
+                current: 100.0,
+                maximum: 100.0,
+                regen_rate: 40.0,
+                regen_delay: 0.5,
+                regen_delay_timer: 0.0,
+                exhausted: false,
             },
         );
 
@@ -790,7 +1025,18 @@ impl GameplayState {
 impl State for GameplayState {
     fn enter(&mut self) {
         self.apply_initial_upgrades();
-        self.spawn_player();
+
+        // Check if we're in co-op mode
+        if let Some(coop_players) = crate::data::get_coop_players() {
+            // Co-op mode - spawn multiple players
+            self.spawn_coop_players(coop_players);
+            // Clear the co-op data after using it
+            crate::data::clear_coop_players();
+        } else {
+            // Single player mode
+            self.spawn_player();
+        }
+
         self.combat_system
             .set_player_attack_multiplier(self.player_attack_multiplier);
 
@@ -897,6 +1143,49 @@ impl State for GameplayState {
 
         // Update ability state
         self.ability_state.update(dt);
+
+        // Update stamina for all entities
+        self.update_stamina_system(dt);
+
+        // Update plane system if active
+        if let Some(plane) = &mut self.plane_system {
+            // Get player input for plane control
+            let mut input_direction = Vec2::ZERO;
+            if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up) {
+                input_direction.y -= 1.0;
+            }
+            if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down) {
+                input_direction.y += 1.0;
+            }
+            if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left) {
+                input_direction.x -= 1.0;
+            }
+            if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) {
+                input_direction.x += 1.0;
+            }
+
+            plane.update(dt, input_direction);
+
+            // Handle bomb dropping
+            if is_key_pressed(KeyCode::Space) {
+                use crate::combat::plane_system::BombPattern;
+                let bombs = plane.drop_bomb(BombPattern::Single);
+                // Damage enemies hit by bombs
+                for bomb in &bombs {
+                    if bomb.exploded {
+                        for &enemy_entity in &self.enemy_entities.clone() {
+                            if let Some(enemy_transform) = self.world.get_component::<Transform>(enemy_entity) {
+                                if bomb.check_collision(enemy_transform.position, 30.0) {
+                                    if let Some(enemy_health) = self.world.get_component_mut::<Health>(enemy_entity) {
+                                        enemy_health.current = (enemy_health.current - bomb.damage).max(0.0);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Update auto-attack timer
         if self.auto_attack_timer > 0.0 {
@@ -1668,6 +1957,87 @@ impl State for GameplayState {
             }
         }
 
+        // Render plane if active
+        if let Some(plane) = &self.plane_system {
+            if plane.in_plane || plane.entering_plane || plane.exiting_plane {
+                // Draw plane body
+                let plane_width = 80.0;
+                let plane_height = 60.0;
+
+                // Draw shadow on ground
+                draw_circle(plane.position.x, 540.0, 20.0 + plane.altitude * 0.1, Color::new(0.0, 0.0, 0.0, 0.3));
+
+                // Draw plane at altitude
+                let plane_y = plane.position.y - plane.altitude;
+                let scale = 1.0 + (plane.altitude / 300.0) * 0.3; // Slightly bigger at high altitude
+
+                // Wings
+                draw_rectangle(
+                    plane.position.x - plane_width * scale * 0.5,
+                    plane_y - 8.0 * scale,
+                    plane_width * scale,
+                    16.0 * scale,
+                    Color::new(0.6, 0.6, 0.7, 1.0),
+                );
+
+                // Body
+                draw_rectangle(
+                    plane.position.x - 15.0 * scale,
+                    plane_y - plane_height * scale * 0.5,
+                    30.0 * scale,
+                    plane_height * scale,
+                    Color::new(0.5, 0.7, 0.8, 1.0),
+                );
+
+                // Cockpit
+                draw_circle(
+                    plane.position.x,
+                    plane_y - 10.0 * scale,
+                    12.0 * scale,
+                    Color::new(0.3, 0.5, 0.7, 1.0),
+                );
+
+                // Draw active bombs
+                for bomb in &plane.active_bombs {
+                    if !bomb.exploded {
+                        draw_circle(bomb.position.x, bomb.position.y, 8.0, Color::new(0.2, 0.2, 0.2, 1.0));
+                        draw_circle(bomb.position.x, bomb.position.y, 6.0, RED);
+                    } else {
+                        // Explosion effect
+                        let explosion_size = bomb.explosion_radius * 0.5;
+                        draw_circle(bomb.position.x, bomb.position.y, explosion_size, Color::new(1.0, 0.5, 0.0, 0.6));
+                        draw_circle(bomb.position.x, bomb.position.y, explosion_size * 0.7, Color::new(1.0, 0.8, 0.0, 0.8));
+                    }
+                }
+
+                // Plane UI
+                let ui_x = screen_width() - 250.0;
+                let ui_y = 150.0;
+                draw_text("PLANE MODE", ui_x, ui_y, 20.0, YELLOW);
+                draw_text(
+                    &format!("Altitude: {:.0}m", plane.altitude),
+                    ui_x,
+                    ui_y + 25.0,
+                    16.0,
+                    WHITE,
+                );
+                draw_text(
+                    &format!("Bombs: {}/{}", plane.bombs_remaining, plane.max_bombs),
+                    ui_x,
+                    ui_y + 45.0,
+                    16.0,
+                    WHITE,
+                );
+                draw_text(
+                    &format!("Duration: {:.1}s", plane.get_duration_remaining()),
+                    ui_x,
+                    ui_y + 65.0,
+                    16.0,
+                    WHITE,
+                );
+            }
+        }
+
         // Render enhanced VFX on top of game objects
         self.enhanced_vfx.render();
 
@@ -1800,17 +2170,23 @@ impl State for GameplayState {
 
                         // Check if it's time to attack again
                         if self.auto_attack_timer <= 0.0 {
-                            if is_key_down(KeyCode::J) {
-                                new_state = Some(FighterState::LightAttack);
+                            // Determine attack type and stamina cost
+                            let (attack_type, stamina_cost) = if is_key_down(KeyCode::J) {
+                                (Some(FighterState::LightAttack), 15.0)
                             } else if is_key_down(KeyCode::K) {
-                                new_state = Some(FighterState::HeavyAttack);
+                                (Some(FighterState::HeavyAttack), 30.0)
                             } else if is_key_down(KeyCode::L) {
-                                new_state = Some(FighterState::Special);
-                            }
+                                (Some(FighterState::Special), 50.0)
+                            } else {
+                                (None, 0.0)
+                            };
 
-                            // Reset timer for next attack
-                            if new_state.is_some() {
-                                self.auto_attack_timer = self.auto_attack_delay;
+                            // Check if we have enough stamina
+                            if let Some(attack) = attack_type {
+                                if self.consume_stamina(player_entity, stamina_cost) {
+                                    new_state = Some(attack);
+                                    self.auto_attack_timer = self.auto_attack_delay;
+                                }
                             }
                         }
                     } else {
@@ -1913,6 +2289,22 @@ impl State for GameplayState {
                                         self.burning_enemies.insert(enemy_entity, (duration, dps));
                                     }
                                 }
+
+                                // Activate plane mode if applicable (Keizer Bom Taha's ability)
+                                let character = crate::data::characters::Character::get_by_id(self.selected_character);
+                                for effect in character.effects {
+                                    if matches!(effect, crate::data::characters::AbilityEffect::PlaneSummon) {
+                                        if let Some(player_transform) = self.world.get_component::<Transform>(player_entity) {
+                                            if self.plane_system.is_none() {
+                                                self.plane_system = Some(PlaneSystem::new());
+                                            }
+                                            if let Some(plane) = &mut self.plane_system {
+                                                plane.enter_plane(player_transform.position);
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1955,6 +2347,84 @@ impl State for GameplayState {
 
             if let Some(state) = new_state {
                 if let Some(fighter) = self.world.get_component_mut::<Fighter>(player_entity) {
+                    fighter.state = state;
+                }
+            }
+        }
+
+        // Player 2 controls (Arrow keys + Enter/Backspace)
+        if let Some(player2_entity) = self.player2_entity {
+            let mut move_input = 0.0;
+            let mut move_depth = 0.0;
+            let mut new_state = None;
+
+            if let Some(fighter) = self.world.get_component::<Fighter>(player2_entity) {
+                if fighter.hitstun <= 0.0 && fighter.blockstun <= 0.0 {
+                    if is_key_down(KeyCode::Left) {
+                        move_input -= 1.0;
+                    }
+                    if is_key_down(KeyCode::Right) {
+                        move_input += 1.0;
+                    }
+                    if is_key_down(KeyCode::Up) {
+                        move_depth -= 1.0;
+                    }
+                    if is_key_down(KeyCode::Down) {
+                        move_depth += 1.0;
+                    }
+
+                    // Attack controls for player 2
+                    if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Kp1) {
+                        if self.consume_stamina(player2_entity, 15.0) {
+                            new_state = Some(FighterState::LightAttack);
+                        }
+                    } else if is_key_pressed(KeyCode::Backspace) || is_key_pressed(KeyCode::Kp2) {
+                        if self.consume_stamina(player2_entity, 30.0) {
+                            new_state = Some(FighterState::HeavyAttack);
+                        }
+                    } else if is_key_pressed(KeyCode::RightShift) || is_key_pressed(KeyCode::Kp3) {
+                        if self.consume_stamina(player2_entity, 50.0) {
+                            new_state = Some(FighterState::Special);
+                        }
+                    }
+                }
+            }
+
+            if let Some(transform) = self.world.get_component_mut::<Transform>(player2_entity) {
+                let dt = get_frame_time();
+                let effective_move_speed = self.player_move_speed;
+                let depth_speed = effective_move_speed * 0.65;
+                transform.position.x += move_input * effective_move_speed * dt;
+                transform.position.y += move_depth * depth_speed * dt;
+
+                let min_depth = 340.0;
+                let max_depth = 660.0;
+                transform.position.y = transform.position.y.clamp(min_depth, max_depth);
+                transform.position.x = transform.position.x.clamp(60.0, screen_width() - 60.0);
+            }
+
+            if let Some(velocity) = self.world.get_component_mut::<Velocity>(player2_entity) {
+                velocity.linear = Vec2::ZERO;
+            }
+
+            if let Some(fighter) = self.world.get_component_mut::<Fighter>(player2_entity) {
+                if move_input.abs() > 0.01
+                    && matches!(fighter.state, FighterState::Idle | FighterState::Walking)
+                {
+                    fighter.state = FighterState::Walking;
+                } else if move_input.abs() <= 0.01 && fighter.state == FighterState::Walking {
+                    fighter.state = FighterState::Idle;
+                }
+
+                if move_input > 0.1 {
+                    fighter.facing = 1.0;
+                } else if move_input < -0.1 {
+                    fighter.facing = -1.0;
+                }
+            }
+
+            if let Some(state) = new_state {
+                if let Some(fighter) = self.world.get_component_mut::<Fighter>(player2_entity) {
                     fighter.state = state;
                 }
             }
@@ -2182,6 +2652,74 @@ impl GameplayState {
                 transform.position.y = transform.position.y.clamp(340.0, 660.0);
             }
         }
+    }
+
+    fn update_stamina_system(&mut self, dt: f32) {
+        // Collect all entities with Stamina component
+        let entities: Vec<EntityId> = self
+            .world
+            .query::<Stamina>()
+            .map(|(entity, _)| entity)
+            .collect();
+
+        for entity in entities {
+            if let (Some(fighter), Some(stamina)) = (
+                self.world.get_component::<Fighter>(entity),
+                self.world.get_component::<Stamina>(entity)
+            ) {
+                let is_attacking = matches!(
+                    fighter.state,
+                    FighterState::LightAttack | FighterState::HeavyAttack | FighterState::Special
+                );
+
+                // Only regenerate if not attacking or in recovery
+                let should_regen = !is_attacking && fighter.attack_recovery <= 0.0;
+
+                // Update regen delay timer
+                let new_timer = if should_regen {
+                    (stamina.regen_delay_timer - dt).max(0.0)
+                } else {
+                    stamina.regen_delay
+                };
+
+                // Regenerate stamina after delay
+                let new_current = if should_regen && new_timer <= 0.0 {
+                    (stamina.current + stamina.regen_rate * dt).min(stamina.maximum)
+                } else {
+                    stamina.current
+                };
+
+                // Update exhaustion state
+                let new_exhausted = new_current <= 0.0;
+
+                // Update the component
+                if let Some(stamina_mut) = self.world.get_component_mut::<Stamina>(entity) {
+                    stamina_mut.current = new_current;
+                    stamina_mut.regen_delay_timer = new_timer;
+                    stamina_mut.exhausted = new_exhausted;
+                }
+
+                // Apply exhaustion effects to fighter
+                if new_exhausted {
+                    if let Some(fighter_mut) = self.world.get_component_mut::<Fighter>(entity) {
+                        fighter_mut.invulnerable = false; // Can't dodge while exhausted
+                    }
+                }
+            }
+        }
+    }
+
+    fn consume_stamina(&mut self, entity: EntityId, amount: f32) -> bool {
+        if let Some(stamina) = self.world.get_component::<Stamina>(entity) {
+            if stamina.current >= amount {
+                if let Some(stamina_mut) = self.world.get_component_mut::<Stamina>(entity) {
+                    stamina_mut.current -= amount;
+                    stamina_mut.regen_delay_timer = stamina_mut.regen_delay;
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn check_game_over(&mut self) {
@@ -2604,6 +3142,40 @@ impl GameplayState {
                     let combo_text = format!("COMBO x{}", fighter.combo_counter);
                     draw_text(&combo_text, screen_width() - 200.0, 100.0, 40.0, YELLOW);
                 }
+            }
+
+            // Stamina bar
+            if let Some(stamina) = self.world.get_component::<Stamina>(player_entity) {
+                let stamina_y = 115.0;
+                let stamina_width = 200.0;
+                let stamina_height = 18.0;
+
+                // Background
+                draw_rectangle(50.0, stamina_y, stamina_width, stamina_height,
+                    Color::new(0.15, 0.15, 0.0, 0.8));
+
+                // Stamina fill
+                let stamina_color = if stamina.exhausted {
+                    Color::new(0.5, 0.0, 0.0, 1.0) // Red when exhausted
+                } else if stamina.current < 30.0 {
+                    Color::new(0.8, 0.5, 0.0, 1.0) // Orange when low
+                } else {
+                    Color::new(0.8, 0.8, 0.0, 1.0) // Yellow when normal
+                };
+
+                draw_rectangle(
+                    50.0,
+                    stamina_y,
+                    stamina_width * (stamina.current / stamina.maximum),
+                    stamina_height,
+                    stamina_color,
+                );
+
+                draw_rectangle_lines(50.0, stamina_y, stamina_width, stamina_height, 2.0, WHITE);
+
+                // Stamina text
+                let stamina_text = format!("STAMINA {:.0}/{:.0}", stamina.current, stamina.maximum);
+                draw_text(&stamina_text, 60.0, stamina_y + 13.0, 14.0, WHITE);
             }
         }
 
