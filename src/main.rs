@@ -1,8 +1,10 @@
 mod app;
 mod audio;
 mod combat;
+mod coop;
 mod data;
 mod ecs;
+mod progression;
 mod render;
 mod states;
 mod ui;

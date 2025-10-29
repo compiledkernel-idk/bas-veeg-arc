@@ -67,10 +67,13 @@ impl Application {
 
             self.camera.update();
             self.audio_mixer.update(frame_time as f32);
-            self.state_manager.update(frame_time as f32);
 
-            // Temporarily disable graphics enhancement to diagnose black screen issue
-            // self.graphics_enhancement.begin_frame();
+            // Apply time scale for slow-motion effects
+            let adjusted_frame_time = frame_time as f32 * self.graphics_enhancement.get_time_scale();
+            self.state_manager.update(adjusted_frame_time);
+
+            // Enable graphics enhancement (fixed to not use render targets)
+            self.graphics_enhancement.begin_frame(frame_time as f32);
 
             clear_background(BLACK);
 
@@ -78,8 +81,8 @@ impl Application {
             self.state_manager.render(interpolation as f32);
             self.camera.reset_transform();
 
-            // Temporarily disable graphics enhancement
-            // self.graphics_enhancement.end_frame();
+            // Render post-processing effects (vignette, lights, flash)
+            self.graphics_enhancement.end_frame();
 
             self.render_letterbox();
 

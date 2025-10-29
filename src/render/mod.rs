@@ -1,7 +1,10 @@
 pub mod atlas;
 pub mod camera;
 // pub mod character_renderer;
+pub mod enhanced_vfx;
 pub mod graphics_enhancement;
+pub mod map_system;
+pub mod motion_trail;
 pub mod post;
 pub mod screen_effects;
 // pub mod shader_system;
@@ -12,7 +15,10 @@ pub mod vfx;
 
 pub use camera::GameCamera;
 // pub use character_renderer::CharacterRenderer;
+pub use enhanced_vfx::{EnhancedVFXSystem, ImpactType, AuraType, DistortionType};
 pub use graphics_enhancement::{GraphicsEnhancement, EnhancedSprite};
+pub use map_system::{MapSystem, ParallaxLayer, AnimatedObject, WeatherSystem, DynamicLight};
+pub use motion_trail::{MotionTrail, AttackTrail};
 pub use screen_effects::ScreenEffects;
 // pub use shader_system::ShaderSystem;
 // pub use skeletal_animation::SkeletalAnimationSystem;

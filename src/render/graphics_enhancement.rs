@@ -1,6 +1,7 @@
 use macroquad::prelude::*;
 
 /// Simplified advanced graphics enhancement system that works with Macroquad
+/// Redesigned to work WITHOUT render targets to avoid black screen issues
 pub struct GraphicsEnhancement {
     // Post-processing effects
     pub bloom_enabled: bool,
@@ -18,8 +19,17 @@ pub struct GraphicsEnhancement {
     pub shadow_quality: ShadowQuality,
     pub motion_blur_enabled: bool,
 
-    // Performance
-    render_target: Option<RenderTarget>,
+    // Screen effects (new)
+    pub screen_shake_intensity: f32,
+    pub time_scale: f32, // For slow-mo effects
+    pub screen_flash_color: Option<(Color, f32)>, // Color and duration
+    pub camera_zoom: f32,
+    pub distortion_amount: f32,
+
+    // Internal state
+    flash_timer: f32,
+    shake_offset: Vec2,
+    shake_timer: f32,
 }
 
 #[derive(Clone)]
@@ -84,73 +94,102 @@ impl GraphicsEnhancement {
             particle_quality: ParticleQuality::High,
             shadow_quality: ShadowQuality::Medium,
             motion_blur_enabled: true,
-            render_target: None,
+            screen_shake_intensity: 0.0,
+            time_scale: 1.0,
+            screen_flash_color: None,
+            camera_zoom: 1.0,
+            distortion_amount: 0.0,
+            flash_timer: 0.0,
+            shake_offset: Vec2::ZERO,
+            shake_timer: 0.0,
         }
     }
 
-    pub fn begin_frame(&mut self) {
-        // Create render target if needed
-        if self.render_target.is_none() {
-            self.render_target = Some(render_target(screen_width() as u32, screen_height() as u32));
+    /// Call this at the beginning of each frame
+    pub fn begin_frame(&mut self, dt: f32) {
+        // Update screen shake
+        if self.shake_timer > 0.0 {
+            self.shake_timer -= dt;
+            let angle = get_time() as f32 * 50.0;
+            self.shake_offset = Vec2::new(
+                angle.cos() * self.screen_shake_intensity,
+                angle.sin() * self.screen_shake_intensity,
+            );
+        } else {
+            self.shake_offset = Vec2::ZERO;
+            self.screen_shake_intensity = 0.0;
         }
 
-        // Set render target for post-processing
-        if let Some(rt) = &self.render_target {
-            set_camera(&Camera2D {
-                render_target: Some(rt.clone()),
-                ..Default::default()
-            });
+        // Update flash effect
+        if let Some((_, duration)) = &mut self.screen_flash_color {
+            self.flash_timer += dt;
+            if self.flash_timer >= *duration {
+                self.screen_flash_color = None;
+                self.flash_timer = 0.0;
+            }
         }
     }
 
+    /// Call this at the end of each frame to render effects on top
     pub fn end_frame(&mut self) {
-        // Reset to screen rendering
-        set_default_camera();
-
-        if let Some(rt) = &self.render_target {
-            // Apply post-processing effects
-            self.apply_post_processing(&rt.texture);
-        }
-    }
-
-    fn apply_post_processing(&self, texture: &Texture2D) {
-        // Clear with ambient light
-        clear_background(self.ambient_light);
-
-        // Base rendering
-        let mut params = DrawTextureParams {
-            dest_size: Some(Vec2::new(screen_width(), screen_height())),
-            ..Default::default()
-        };
-
-        // Apply color grading
-        let graded_color = self.apply_color_grading(WHITE);
-
-        // Draw main texture
-        draw_texture_ex(texture, 0.0, 0.0, graded_color, params.clone());
-
-        // Apply bloom effect
-        if self.bloom_enabled {
-            self.render_bloom(texture);
-        }
-
-        // Apply chromatic aberration
-        if self.chromatic_aberration > 0.0 {
-            self.render_chromatic_aberration(texture);
-        }
-
-        // Apply vignette
+        // Render vignette
         if self.vignette_strength > 0.0 {
             self.render_vignette();
         }
 
         // Render dynamic lights
-        for light in &self.dynamic_lights {
-            self.render_light(light);
+        for i in 0..self.dynamic_lights.len() {
+            let light = self.dynamic_lights[i].clone();
+            self.render_light(&light);
+        }
+
+        // Render screen flash
+        if let Some((color, duration)) = self.screen_flash_color {
+            let alpha = (1.0 - (self.flash_timer / duration)) * color.a;
+            let flash_color = Color::new(color.r, color.g, color.b, alpha);
+            draw_rectangle(0.0, 0.0, screen_width(), screen_height(), flash_color);
         }
     }
 
-    fn apply_color_grading(&self, color: Color) -> Color {
+    /// Get the camera shake offset to apply to camera position
+    pub fn get_shake_offset(&self) -> Vec2 {
+        self.shake_offset
+    }
+
+    /// Trigger a screen shake effect
+    pub fn trigger_screen_shake(&mut self, intensity: f32, duration: f32) {
+        self.screen_shake_intensity = intensity;
+        self.shake_timer = duration;
+    }
+
+    /// Trigger a screen flash effect
+    pub fn trigger_screen_flash(&mut self, color: Color, duration: f32) {
+        self.screen_flash_color = Some((color, duration));
+        self.flash_timer = 0.0;
+    }
+
+    /// Set slow-motion effect (0.0 = frozen, 1.0 = normal speed, >1.0 = fast forward)
+    pub fn set_time_scale(&mut self, scale: f32) {
+        self.time_scale = scale.max(0.0);
+    }
+
+    /// Get the current time scale for slow-motion
+    pub fn get_time_scale(&self) -> f32 {
+        self.time_scale
+    }
+
+    /// Set camera zoom level
+    pub fn set_camera_zoom(&mut self, zoom: f32) {
+        self.camera_zoom = zoom.max(0.1);
+    }
+
+    /// Get current camera zoom
+    pub fn get_camera_zoom(&self) -> f32 {
+        self.camera_zoom
+    }
+
+    /// Apply color grading to a color (can be used for individual sprites)
+    pub fn apply_color_grading(&self, color: Color) -> Color {
         let cg = &self.color_grading;
 
         // Temperature adjustment
@@ -182,92 +221,6 @@ impl GraphicsEnhancement {
         let b = b.powf(1.0 / cg.gamma);
 
         Color::new(r, g, b, color.a)
-    }
-
-    fn render_bloom(&self, texture: &Texture2D) {
-        // Simplified bloom effect
-        let blur_steps = 3;
-        let mut bloom_color = Color::new(1.0, 1.0, 1.0, self.bloom_intensity * 0.3);
-
-        for i in 0..blur_steps {
-            let offset = (i + 1) as f32 * 2.0;
-            let alpha = bloom_color.a * (1.0 - i as f32 / blur_steps as f32);
-            bloom_color.a = alpha;
-
-            // Horizontal blur
-            draw_texture_ex(
-                texture,
-                offset,
-                0.0,
-                bloom_color,
-                DrawTextureParams {
-                    dest_size: Some(Vec2::new(screen_width(), screen_height())),
-                    ..Default::default()
-                },
-            );
-
-            draw_texture_ex(
-                texture,
-                -offset,
-                0.0,
-                bloom_color,
-                DrawTextureParams {
-                    dest_size: Some(Vec2::new(screen_width(), screen_height())),
-                    ..Default::default()
-                },
-            );
-
-            // Vertical blur
-            draw_texture_ex(
-                texture,
-                0.0,
-                offset,
-                bloom_color,
-                DrawTextureParams {
-                    dest_size: Some(Vec2::new(screen_width(), screen_height())),
-                    ..Default::default()
-                },
-            );
-
-            draw_texture_ex(
-                texture,
-                0.0,
-                -offset,
-                bloom_color,
-                DrawTextureParams {
-                    dest_size: Some(Vec2::new(screen_width(), screen_height())),
-                    ..Default::default()
-                },
-            );
-        }
-    }
-
-    fn render_chromatic_aberration(&self, texture: &Texture2D) {
-        let offset = self.chromatic_aberration * 5.0;
-
-        // Red channel offset
-        draw_texture_ex(
-            texture,
-            -offset,
-            0.0,
-            Color::new(1.0, 0.0, 0.0, 0.1),
-            DrawTextureParams {
-                dest_size: Some(Vec2::new(screen_width(), screen_height())),
-                ..Default::default()
-            },
-        );
-
-        // Blue channel offset
-        draw_texture_ex(
-            texture,
-            offset,
-            0.0,
-            Color::new(0.0, 0.0, 1.0, 0.1),
-            DrawTextureParams {
-                dest_size: Some(Vec2::new(screen_width(), screen_height())),
-                ..Default::default()
-            },
-        );
     }
 
     fn render_vignette(&self) {

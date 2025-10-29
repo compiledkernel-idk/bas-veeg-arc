@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CharacterId {
     Berkay,
     Luca,
@@ -13,6 +13,9 @@ pub enum CharacterId {
     EfeAbi,
     Jad,
     Umut,
+    KeizerBomTaha,      // Military commander with plane mechanics
+    PrincipalVanDerBerg, // Tank character with authority abilities
+    LunchroomLadyPetra,  // Control character with food debuffs
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -23,6 +26,12 @@ pub enum AbilityEffect {
     SplashDamage(f32, f32), // damage, radius
     FireDamage(f32, f32),   // damage per second, duration
     ProjectileDamage(f32),  // For Fufinho's fufu throw
+    PlaneSummon,            // Keizer Bom Taha: Enter plane mode
+    ArmorBoost(f32),        // Damage reduction percentage
+    Stun(f32),              // Stun duration in seconds
+    Slow(f32, f32),         // Slow amount (0.0-1.0), duration
+    DamageReflect(f32),     // Reflect damage percentage
+    Invincibility,          // Temporary invulnerability
 }
 
 pub struct Character {
@@ -82,7 +91,23 @@ const UMUT_EFFECTS: &[AbilityEffect] = &[
     AbilityEffect::DamageBoost(2.3),
 ];
 
-pub const CHARACTERS: [Character; 11] = [
+const KEIZER_BOM_TAHA_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::PlaneSummon,     // Enter plane mode with bombs
+];
+
+const PRINCIPAL_VAN_DER_BERG_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::ArmorBoost(0.6), // 60% damage reduction
+    AbilityEffect::Stun(2.5),        // Stuns nearby enemies for 2.5s
+    AbilityEffect::DamageBoost(1.8), // Moderate damage increase
+];
+
+const LUNCHROOM_LADY_PETRA_EFFECTS: &[AbilityEffect] = &[
+    AbilityEffect::Slow(0.5, 4.0),   // Slows enemies by 50% for 4s
+    AbilityEffect::FireDamage(6.0, 5.0), // Hot soup DOT
+    AbilityEffect::SplashDamage(35.0, 120.0), // Food splash
+];
+
+pub const CHARACTERS: [Character; 14] = [
     Character {
         id: CharacterId::Berkay,
         name: "Berkay",
@@ -182,6 +207,33 @@ pub const CHARACTERS: [Character; 11] = [
         duration: 5.0,
         cooldown: 13.0,
     },
+    Character {
+        id: CharacterId::KeizerBomTaha,
+        name: "Keizer Bom Taha",
+        ability_name: "Airborne Assault",
+        voice_line: "PREPARE FOR AERIAL BOMBARDMENT!",
+        effects: KEIZER_BOM_TAHA_EFFECTS,
+        duration: 15.0, // Max plane duration
+        cooldown: 25.0,  // Long cooldown for powerful ability
+    },
+    Character {
+        id: CharacterId::PrincipalVanDerBerg,
+        name: "Principal Van Der Berg",
+        ability_name: "Executive Order",
+        voice_line: "TO THE PRINCIPAL'S OFFICE! NOW!",
+        effects: PRINCIPAL_VAN_DER_BERG_EFFECTS,
+        duration: 8.0,
+        cooldown: 18.0,
+    },
+    Character {
+        id: CharacterId::LunchroomLadyPetra,
+        name: "Lunchroom Lady Petra",
+        ability_name: "Food Fight",
+        voice_line: "EET JE BORD LEEG!",
+        effects: LUNCHROOM_LADY_PETRA_EFFECTS,
+        duration: 6.0,
+        cooldown: 14.0,
+    },
 ];
 
 impl Character {
@@ -206,6 +258,9 @@ impl CharacterId {
             CharacterId::EfeAbi => CT::Hadi,   // Temporarily map to existing type
             CharacterId::Jad => CT::Berkay,    // Temporarily map to existing type
             CharacterId::Umut => CT::Nitin,    // Temporarily map to existing type
+            CharacterId::KeizerBomTaha => CT::KeizerBomTaha,
+            CharacterId::PrincipalVanDerBerg => CT::PrincipalVanDerBerg,
+            CharacterId::LunchroomLadyPetra => CT::LunchroomLadyPetra,
         }
     }
 }

@@ -70,6 +70,9 @@ pub enum CharacterType {
     Luca,
     Nitin,
     YigitBaba,
+    KeizerBomTaha,           // Playable military commander with plane
+    PrincipalVanDerBerg,     // Playable tank character
+    LunchroomLadyPetra,      // Playable control character
     // NPCs and enemies
     Wolters,
     PrefectA,
@@ -79,7 +82,7 @@ pub enum CharacterType {
     Coach,
     // Bosses
     Bastiaan,
-    KeizerBomTaha,
+    KeizerBomTahaBoss,       // Boss version (different from playable)
     Mees, // Boss that throws pita sirrachas
 }
 
