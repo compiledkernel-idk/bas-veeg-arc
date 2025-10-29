@@ -15,6 +15,7 @@ impl MenuState {
             options: vec![
                 "START STORY".to_string(),
                 "ENDLESS MODE".to_string(),
+                "CO-OP MODE (2-4 PLAYERS)".to_string(),
                 "CONTROLS".to_string(),
                 "EXIT".to_string(),
             ],
@@ -128,8 +129,9 @@ impl State for MenuState {
             match self.selected_option {
                 0 => self.transition_to = Some(StateType::CharacterSelect),
                 1 => self.transition_to = Some(StateType::EndlessMode),
-                2 => self.transition_to = Some(StateType::Controls),
-                3 => std::process::exit(0),
+                2 => self.transition_to = Some(StateType::CoopMode), // Co-op mode
+                3 => self.transition_to = Some(StateType::Controls),
+                4 => std::process::exit(0),
                 _ => {}
             }
         }

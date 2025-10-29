@@ -26,6 +26,7 @@ pub enum StateType {
     Results,
     Settings,
     EndlessMode,
+    CoopMode,
 }
 
 pub trait State {
@@ -152,6 +153,12 @@ impl StateManager {
             StateType::Results => Box::new(results::ResultsState::new()),
             StateType::Settings => Box::new(settings::SettingsState::new()),
             StateType::EndlessMode => Box::new(endless::EndlessState::new()),
+            StateType::CoopMode => {
+                // Create gameplay with co-op enabled
+                let mut state = gameplay::GameplayState::new();
+                state.enable_coop(4); // Enable for up to 4 players
+                Box::new(state)
+            }
         }
     }
 }

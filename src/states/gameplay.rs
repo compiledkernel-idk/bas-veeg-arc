@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use crate::combat::hitbox::{Hitbox, HitType, SpecialType};
 use crate::combat::hurtbox::Hurtbox;
 use crate::combat::inputs::InputManager;
+use crate::combat::combo_system::{ComboSystem, StyleRank};
+use crate::combat::plane_system::PlaneSystem;
 use crate::data::{AbilityState, CharacterId, ShopManager, UpgradeId};
 use crate::ecs::System as EcsSystem;
 use crate::ecs::{
@@ -13,7 +15,9 @@ use crate::ecs::{
 use crate::ecs::{
     AISystem, AnimationSystem, CombatSystem, MovementSystem, ParticleSystem, PhysicsSystem,
 };
-use crate::render::{TextureManager, GraphicsEnhancement, EnhancedSprite};
+use crate::render::{TextureManager, GraphicsEnhancement, EnhancedSprite, EnhancedVFXSystem, MapSystem};
+use crate::coop::{CoopPlayerManager, SharedComboSystem, ReviveSystem};
+use crate::progression::{SkillTreeManager, CharacterMastery, AchievementManager, AccountProgression};
 use crate::states::State;
 use crate::states::StateType;
 use macroquad::prelude::*;
@@ -67,6 +71,18 @@ pub struct GameplayState {
     auto_attack_timer: f32,
     auto_attack_delay: f32,
     is_holding_attack: bool,
+    // New integrated systems
+    coop_manager: Option<CoopPlayerManager>,
+    shared_combo: Option<SharedComboSystem>,
+    revive_system: Option<ReviveSystem>,
+    combo_system: ComboSystem,
+    plane_system: Option<PlaneSystem>,
+    enhanced_vfx: EnhancedVFXSystem,
+    map_system: MapSystem,
+    skill_tree_manager: SkillTreeManager,
+    character_mastery: CharacterMastery,
+    achievement_manager: AchievementManager,
+    account_progression: AccountProgression,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -150,6 +166,12 @@ impl GameplayState {
         self.graphics_enhancement = Some(graphics);
     }
 
+    pub fn enable_coop(&mut self, _max_players: usize) {
+        self.coop_manager = Some(CoopPlayerManager::new());
+        self.shared_combo = Some(SharedComboSystem::new());
+        self.revive_system = Some(ReviveSystem::new());
+    }
+
     pub fn new() -> Self {
         Self {
             world: World::new(),
@@ -205,6 +227,18 @@ impl GameplayState {
             auto_attack_timer: 0.0,
             auto_attack_delay: 0.25, // Attack every 0.25 seconds when holding
             is_holding_attack: false,
+            // New integrated systems
+            coop_manager: None, // Will be initialized when co-op is enabled
+            shared_combo: None,
+            revive_system: None,
+            combo_system: ComboSystem::new(),
+            plane_system: None, // Initialized when Keizer Bom Taha uses ability
+            enhanced_vfx: EnhancedVFXSystem::new(),
+            map_system: MapSystem::new(crate::render::map_system::MapType::Classroom),
+            skill_tree_manager: SkillTreeManager::new(),
+            character_mastery: CharacterMastery::new(crate::data::get_selected_character()),
+            achievement_manager: AchievementManager::new(),
+            account_progression: AccountProgression::new(),
         }
     }
 
@@ -843,6 +877,24 @@ impl State for GameplayState {
             return;
         }
 
+        // Update combo system
+        self.combo_system.update(dt);
+
+        // Update enhanced VFX
+        self.enhanced_vfx.update(dt);
+
+        // Update map system with player position
+        let camera_pos = if let Some(player_entity) = self.player_entity {
+            if let Some(transform) = self.world.get_component::<Transform>(player_entity) {
+                transform.position
+            } else {
+                Vec2::ZERO
+            }
+        } else {
+            Vec2::ZERO
+        };
+        self.map_system.update(dt, camera_pos);
+
         // Update ability state
         self.ability_state.update(dt);
 
@@ -1014,6 +1066,11 @@ impl State for GameplayState {
         for entity in entities_to_damage {
             if let Some(health) = self.world.get_component_mut::<Health>(entity) {
                 health.current = (health.current - 25.0).max(0.0);
+
+                // If player took damage, break combo
+                if Some(entity) == self.player_entity {
+                    self.combo_system.break_combo();
+                }
             }
         }
 
@@ -1076,6 +1133,34 @@ impl State for GameplayState {
                 if health.current > 0.0 {
                     true
                 } else {
+                    // Enemy died - award XP and check achievements
+                    let xp_reward = 50.0; // Base XP per kill
+                    let combo_multiplier = 1.0 + (self.combo_system.combo_count as f32 * 0.05);
+                    let total_xp = xp_reward * combo_multiplier;
+
+                    // Award XP to character mastery
+                    self.character_mastery.add_xp(total_xp);
+
+                    // Award account progression XP
+                    self.account_progression.add_xp(total_xp * 0.5);
+
+                    // Check achievements (kills, combos, etc.)
+                    self.achievement_manager.update_progress("total_kills", 1.0);
+                    if self.combo_system.combo_count >= 10 {
+                        self.achievement_manager.update_progress("high_combo_kills", 1.0);
+                    }
+                    if self.combo_system.style_rank >= crate::combat::combo_system::StyleRank::S {
+                        self.achievement_manager.update_progress("s_rank_kills", 1.0);
+                    }
+
+                    // Get enemy position for VFX
+                    if let Some(transform) = self.world.get_component::<Transform>(entity) {
+                        let pos = transform.position;
+                        // Spawn death VFX
+                        use crate::render::enhanced_vfx::ImpactType;
+                        self.enhanced_vfx.spawn_impact(pos, Vec2::new(0.0, -1.0), ImpactType::Heavy);
+                    }
+
                     self.world.destroy_entity(entity);
                     false
                 }
@@ -1121,7 +1206,87 @@ impl State for GameplayState {
         self.movement_system.update(&mut self.world, dt);
         self.physics_system.update(&mut self.world, dt);
         self.animation_system.update(&mut self.world, dt);
+
+        // Track player attacks for combo system before combat update
+        let player_attacking = if let Some(player_entity) = self.player_entity {
+            if let Some(fighter) = self.world.get_component::<Fighter>(player_entity) {
+                matches!(fighter.state, FighterState::LightAttack | FighterState::HeavyAttack |
+                         FighterState::Special | FighterState::Super)
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
         self.combat_system.update(&mut self.world, dt);
+
+        // After combat, check for hits and register them with combo system
+        if player_attacking {
+            if let Some(player_entity) = self.player_entity {
+                if let Some(hitbox) = self.world.get_component::<HitboxComponent>(player_entity) {
+                    // If hitbox hit anyone, register it with combo system
+                    if !hitbox.hits_registered.is_empty() {
+                        use crate::combat::combo_system::MoveType;
+
+                        let move_type = if let Some(fighter) = self.world.get_component::<Fighter>(player_entity) {
+                            match fighter.state {
+                                FighterState::LightAttack => MoveType::LightAttack,
+                                FighterState::HeavyAttack => MoveType::HeavyAttack,
+                                FighterState::Special => MoveType::SpecialAttack,
+                                FighterState::Super => MoveType::Ability,
+                                _ => MoveType::LightAttack,
+                            }
+                        } else {
+                            MoveType::LightAttack
+                        };
+
+                        let damage = 10.0 * self.player_attack_multiplier;
+                        let is_critical = false; // Could add crit system later
+
+                        let combo_result = self.combo_system.register_hit(move_type, damage, is_critical);
+
+                        // Show combo VFX if active
+                        if combo_result.combo_count % 5 == 0 {
+                            if let Some(transform) = self.world.get_component::<Transform>(player_entity) {
+                                self.enhanced_vfx.show_combo_text(
+                                    transform.position,
+                                    combo_result.combo_count,
+                                    combo_result.style_rank
+                                );
+                            }
+                        }
+
+                        // Spawn impact VFX and damage numbers
+                        for &hit_entity_id in &hitbox.hits_registered {
+                            let hit_entity = EntityId(hit_entity_id);
+                            if let Some(transform) = self.world.get_component::<Transform>(hit_entity) {
+                                let pos = transform.position;
+
+                                // Impact effect
+                                use crate::render::enhanced_vfx::ImpactType;
+                                let impact_type = match move_type {
+                                    MoveType::LightAttack => ImpactType::Light,
+                                    MoveType::HeavyAttack => ImpactType::Heavy,
+                                    MoveType::SpecialAttack => ImpactType::Critical,
+                                    _ => ImpactType::Medium,
+                                };
+
+                                let direction = if let Some(player_transform) = self.world.get_component::<Transform>(player_entity) {
+                                    (pos - player_transform.position).normalize()
+                                } else {
+                                    Vec2::new(1.0, 0.0)
+                                };
+
+                                self.enhanced_vfx.spawn_impact(pos, direction, impact_type);
+                                self.enhanced_vfx.show_damage_number(pos, damage, is_critical);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         self.particle_system.update(&mut self.world, dt);
         self.ai_system.update(&mut self.world, dt);
         self.process_fighter_states(dt);
@@ -1134,6 +1299,10 @@ impl State for GameplayState {
     fn fixed_update(&mut self, _dt: f64) {}
 
     fn render(&mut self, _interpolation: f32) {
+        // Render map system backgrounds and parallax layers first
+        // Note: The map_system doesn't have a render method, so we'll keep the gradient backgrounds
+        // and add VFX rendering at the end
+
         // Gradient backgrounds for each map
         match self.current_map {
             MapType::Classroom => {
@@ -1499,7 +1668,11 @@ impl State for GameplayState {
             }
         }
 
+        // Render enhanced VFX on top of game objects
+        self.enhanced_vfx.render();
+
         self.render_hud();
+        self.render_combo_ui();
         self.render_controls();
         self.render_dialogue();
 
@@ -2170,6 +2343,12 @@ impl GameplayState {
         if self.shop_manager.has_upgrade(UpgradeId::AttackBoost) {
             self.player_attack_multiplier = 1.4;
         }
+
+        // Apply skill tree bonuses
+        let skill_bonuses = self.skill_tree_manager.calculate_bonuses(self.selected_character);
+        self.player_attack_multiplier *= 1.0 + skill_bonuses.damage_multiplier;
+        self.player_max_health *= 1.0 + skill_bonuses.max_health_multiplier;
+        self.player_move_speed *= 1.0 + skill_bonuses.movement_speed;
     }
 
     fn apply_upgrade_effect(&mut self, upgrade: UpgradeId) {
@@ -5302,6 +5481,74 @@ impl GameplayState {
             }
             _ => 0.0,
         }
+    }
+
+    fn render_combo_ui(&self) {
+        // Render combo system UI
+        if self.combo_system.is_active() {
+            let x = screen_width() - 300.0;
+            let y = 150.0;
+
+            // Combo count
+            let combo_text = format!("{} HIT COMBO", self.combo_system.combo_count);
+            let combo_size = 40.0;
+            let combo_dims = measure_text(&combo_text, None, combo_size as u16, 1.0);
+
+            // Shadow
+            draw_text(&combo_text, x + 2.0, y + 2.0, combo_size, BLACK);
+            // Main text
+            draw_text(&combo_text, x, y, combo_size, YELLOW);
+
+            // Style rank
+            use crate::combat::combo_system::StyleRank;
+            let rank_text = format!("RANK: {}", self.combo_system.style_rank.to_string());
+            let rank_color = self.combo_system.style_rank.to_color();
+            draw_text(&rank_text, x, y + 35.0, 25.0, rank_color);
+
+            // Style points
+            let points_text = format!("Style: {:.0}", self.combo_system.style_points);
+            draw_text(&points_text, x, y + 60.0, 20.0, WHITE);
+
+            // Combo timer bar
+            let timer_width = 250.0;
+            let timer_height = 8.0;
+            let timer_percent = self.combo_system.get_time_remaining() / self.combo_system.combo_decay_time;
+
+            draw_rectangle(x, y + 70.0, timer_width, timer_height, Color::new(0.2, 0.2, 0.2, 0.8));
+            draw_rectangle(x, y + 70.0, timer_width * timer_percent, timer_height,
+                Color::new(1.0, 0.5, 0.0, 1.0));
+            draw_rectangle_lines(x, y + 70.0, timer_width, timer_height, 1.0, WHITE);
+        }
+
+        // Render character mastery progress
+        let mastery_x = 50.0;
+        let mastery_y = screen_height() - 100.0;
+
+        let level_text = format!("Mastery Lv.{}", self.character_mastery.level);
+        draw_text(&level_text, mastery_x, mastery_y, 18.0,
+            self.character_mastery.rank.to_color());
+
+        // XP bar
+        let xp_width = 200.0;
+        let xp_height = 10.0;
+        let xp_percent = self.character_mastery.get_progress_percent() / 100.0;
+
+        draw_rectangle(mastery_x, mastery_y + 5.0, xp_width, xp_height,
+            Color::new(0.2, 0.2, 0.2, 0.8));
+        draw_rectangle(mastery_x, mastery_y + 5.0, xp_width * xp_percent, xp_height,
+            Color::new(0.0, 0.8, 1.0, 1.0));
+        draw_rectangle_lines(mastery_x, mastery_y + 5.0, xp_width, xp_height, 1.0, WHITE);
+
+        let xp_text = format!("{:.0}/{:.0} XP", self.character_mastery.xp,
+            self.character_mastery.xp_for_next_level());
+        draw_text(&xp_text, mastery_x, mastery_y + 30.0, 14.0, WHITE);
+
+        // Render account progression
+        let acc_x = mastery_x;
+        let acc_y = mastery_y + 50.0;
+
+        let acc_text = format!("Account Lv.{}", self.account_progression.level);
+        draw_text(&acc_text, acc_x, acc_y, 16.0, Color::new(1.0, 0.8, 0.0, 1.0));
     }
 
     fn render_controls(&self) {
